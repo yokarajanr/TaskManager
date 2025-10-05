@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosInstance, AxiosResponse } from 'axios';
 import { getAuthToken } from '../utils/auth';
 import { clearAllAuthData } from '../utils/clearAuthData';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://taskmanager-c0kv.onrender.com/api';
 
 const api: AxiosInstance = axios.create({
   baseURL: API_URL,

@@ -31,11 +31,13 @@ const typeIcons = {
   task: { icon: CheckSquare, color: 'text-[#9B5DE5]' },
   bug: { icon: Bug, color: 'text-[#D7263D]' },
   epic: { icon: Circle, color: 'text-[#00F5D4]' },
-};
+  feature: { icon: CheckSquare, color: 'text-[#34D399]' },
+  improvement: { icon: CheckSquare, color: 'text-[#6366F1]' },
+} as const;
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, className }) => {
   const PriorityIcon = priorityIcons[task.priority].icon;
-  const TypeIcon = typeIcons[task.type].icon;
+  const TypeIcon = typeIcons[task.type as keyof typeof typeIcons]?.icon || CheckSquare;
 
   return (
     <div
@@ -48,7 +50,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, className }) 
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
-          <TypeIcon className={clsx('w-4 h-4', typeIcons[task.type].color)} />
+          <TypeIcon className={clsx('w-4 h-4', typeIcons[task.type as keyof typeof typeIcons]?.color || 'text-[#9B5DE5]')} />
           <span className="text-xs font-medium text-[#7C6F64] !important uppercase tracking-wide">
             {task.type}
           </span>

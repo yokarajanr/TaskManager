@@ -1,0 +1,13 @@
+services:
+  # Frontend Service
+  - type: web
+    name: taskmaster-pro-frontend
+    env: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_API_URL
+        value: https://taskmanager-c0kv.onrender.com/api

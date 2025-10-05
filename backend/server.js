@@ -29,7 +29,12 @@ app.use(cors({
     'http://localhost:5176',
     'http://localhost:5177',
     'http://localhost:5178',
-    'http://localhost:5179'
+    'http://localhost:5179',
+    // Add your future frontend domain here
+    'https://taskmaster-pro-frontend.onrender.com',
+    // Allow any Render subdomain for your app
+    /^https:\/\/taskmaster-pro.*\.onrender\.com$/,
+    /^https:\/\/.*taskmaster.*\.onrender\.com$/
   ],
   credentials: true
 }));

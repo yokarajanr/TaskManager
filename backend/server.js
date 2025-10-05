@@ -22,17 +22,14 @@ connectDB().catch(err => {
 app.use(helmet()); // Security headers
 app.use(cors({
   origin: [
-    process.env.CORS_ORIGIN || 'http://localhost:5177',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://localhost:5177',
-    'http://localhost:5178',
-    'http://localhost:5179',
-    'https://taskmanager-1-ofw0.onrender.com/'
+    "https://taskmanager-1-ofw0.onrender.com",
+    "http://localhost:5173",
+    "http://localhost:5174"
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200
 }));
 app.use(morgan('combined')); // Logging
 app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
@@ -48,7 +45,14 @@ app.get('/health', (req, res) => {
   });
 });
 
-
+// Handle preflight requests explicitly
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
 
 // API Routes - Load with error handling
 try {

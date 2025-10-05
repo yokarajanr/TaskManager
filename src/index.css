@@ -1,0 +1,262 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #FFEDD5;
+  --foreground: #1E1E24;
+  --card: #E0FBFC;
+  --card-foreground: #1E1E24;
+  --popover: #E0FBFC;
+  --popover-foreground: #1E1E24;
+  --primary: #9B5DE5;
+  --primary-foreground: #ffffff;
+  --secondary: #00F5D4;
+  --secondary-foreground: #1E1E24;
+  --muted: #7C6F64;
+  --muted-foreground: #7C6F64;
+  --accent: #00F5D4;
+  --accent-foreground: #1E1E24;
+  --destructive: #D7263D;
+  --destructive-foreground: #ffffff;
+  --border: #7C6F64;
+  --input: #E0FBFC;
+  --ring: #9B5DE5;
+  --radius: 0.75rem;
+  
+  /* Custom colors */
+  --success: #F7B801;
+  --warning: #E07A5F;
+  --danger: #D7263D;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: #FFEDD5 !important;
+  color: #1E1E24 !important;
+  font-family: 'Inter', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+/* Override any white text */
+* {
+  color: inherit;
+}
+
+/* Ensure all text uses the correct colors */
+h1, h2, h3, h4, h5, h6 {
+  color: #1E1E24 !important;
+}
+
+p, span, div {
+  color: inherit;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #E0FBFC;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #9B5DE5;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00F5D4;
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(224, 251, 252, 0.95) !important;
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(155, 93, 229, 0.2);
+  box-shadow: 0 8px 32px rgba(155, 93, 229, 0.1);
+}
+
+/* Gradient backgrounds */
+.gradient-bg {
+  background: linear-gradient(135deg, #FFEDD5 0%, #E0FBFC 50%, #FFEDD5 100%) !important;
+}
+
+.gradient-card {
+  background: linear-gradient(135deg, #E0FBFC 0%, #ffffff 100%) !important;
+  border: 2px solid rgba(155, 93, 229, 0.2);
+  box-shadow: 0 4px 20px rgba(155, 93, 229, 0.1);
+}
+
+/* Hover effects */
+.hover-lift {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(155, 93, 229, 0.2);
+}
+
+/* Glow effects */
+.glow {
+  box-shadow: 0 0 25px rgba(155, 93, 229, 0.3);
+}
+
+.glow:hover {
+  box-shadow: 0 0 35px rgba(155, 93, 229, 0.5);
+}
+
+/* Text colors - override any white text */
+.text-white {
+  color: #1E1E24 !important;
+}
+
+.text-gray-300, .text-gray-400, .text-gray-500 {
+  color: #7C6F64 !important;
+}
+
+.text-primary {
+  color: #1E1E24 !important;
+}
+
+.text-secondary {
+  color: #7C6F64 !important;
+}
+
+.text-muted {
+  color: #7C6F64 !important;
+}
+
+/* Improved input styling */
+input, textarea, select {
+  background-color: #E0FBFC !important;
+  border: 2px solid rgba(155, 93, 229, 0.3) !important;
+  color: #1E1E24 !important;
+  border-radius: 12px !important;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: #9B5DE5 !important;
+  box-shadow: 0 0 0 3px rgba(155, 93, 229, 0.2) !important;
+  outline: none !important;
+}
+
+/* Better button contrast */
+.btn-primary {
+  background: linear-gradient(135deg, #9B5DE5 0%, #7C3AED 100%) !important;
+  color: white !important;
+  font-weight: 600;
+  border-radius: 12px;
+  border: none;
+  padding: 12px 24px;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(155, 93, 229, 0.4);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, #00F5D4 0%, #00D4B4 100%) !important;
+  color: #1E1E24 !important;
+  font-weight: 600;
+  border-radius: 12px;
+  border: none;
+  padding: 12px 24px;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(135deg, #00D4B4 0%, #00B894 100%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 245, 212, 0.4);
+}
+
+/* Status colors */
+.status-success {
+  background: #F7B801 !important;
+  color: #1E1E24 !important;
+}
+
+.status-warning {
+  background: #E07A5F !important;
+  color: white !important;
+}
+
+.status-danger {
+  background: #D7263D !important;
+  color: white !important;
+}
+
+.status-info {
+  background: #9B5DE5 !important;
+  color: white !important;
+}
+
+/* Custom animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Card styles */
+.card {
+  background: #E0FBFC !important;
+  border-radius: 16px;
+  border: 2px solid rgba(155, 93, 229, 0.1);
+  box-shadow: 0 4px 20px rgba(155, 93, 229, 0.1);
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  border-color: rgba(155, 93, 229, 0.3);
+  box-shadow: 0 8px 30px rgba(155, 93, 229, 0.2);
+}
+
+/* Override any remaining white backgrounds */
+.bg-white {
+  background-color: #E0FBFC !important;
+}
+
+.bg-slate-900, .bg-slate-800, .bg-slate-700 {
+  background-color: #E0FBFC !important;
+}
+
+/* Override any remaining white text */
+.text-white, .text-slate-100, .text-slate-200 {
+  color: #1E1E24 !important;
+}
+
+/* Ensure proper contrast for all elements */
+* {
+  color: #1E1E24 !important;
+}
+
+/* Exception for buttons and status indicators */
+.btn-primary, .status-danger, .status-info {
+  color: white !important;
+}
+
+.status-success, .status-warning {
+  color: #1E1E24 !important;
+}

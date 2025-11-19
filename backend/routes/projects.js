@@ -80,7 +80,22 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
-    const { name, key, description, visibility = 'team', tags = [] } = req.body;
+    const { name, key, description, department, startDate, projectLead, memberIds = [], visibility = 'team', tags = [] } = req.body;
+
+    // Validate required fields
+    if (!department) {
+      return res.status(400).json({
+        success: false,
+        message: 'Department is required'
+      });
+    }
+
+    if (!startDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date is required'
+      });
+    }
 
     // Check if project key already exists
     const existingProject = await Project.findOne({ key: key.toUpperCase() });
@@ -91,17 +106,38 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
+    // Build members array - always include the creator as manager
+    const projectMembers = [{ user: req.user._id, role: 'manager' }];
+    
+    // Add project lead if specified
+    if (projectLead && projectLead !== req.user._id.toString()) {
+      projectMembers.push({ user: projectLead, role: 'manager' });
+    }
+    
+    // Add other team members
+    if (memberIds && memberIds.length > 0) {
+      memberIds.forEach(memberId => {
+        // Avoid duplicates
+        if (memberId !== req.user._id.toString() && memberId !== projectLead) {
+          projectMembers.push({ user: memberId, role: 'developer' });
+        }
+      });
+    }
+
     // Create new project
     const project = new Project({
       name,
       key: key.toUpperCase(),
       description,
+      department,
+      startDate: new Date(startDate),
       owner: req.user._id,
       createdBy: req.user._id,
+      projectLead: projectLead || undefined,
       organizationId: req.user.organizationId, // Assign to user's organization
       visibility,
       tags,
-      members: [{ user: req.user._id, role: 'manager' }]
+      members: projectMembers
     });
 
     await project.save();
@@ -191,11 +227,11 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    const { name, description, status, visibility, tags } = req.body;
+    const { name, description, department, status, visibility, tags } = req.body;
     
     const updatedProject = await Project.findByIdAndUpdate(
       req.params.id,
-      { name, description, status, visibility, tags },
+      { name, description, department, status, visibility, tags },
       { new: true, runValidators: true }
     )
       .populate('owner', 'name email avatar')

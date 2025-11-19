@@ -32,6 +32,8 @@ export interface Project {
   name: string;
   key: string;
   description: string;
+  department: string;
+  startDate: Date;
   createdAt: Date;
   updatedAt: Date;
   ownerId: string;

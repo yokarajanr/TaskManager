@@ -32,7 +32,9 @@ interface AppContextType {
   
   // Project methods
   fetchProjects: () => Promise<void>;
-  createProject: (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ApiResponse>;
+  createProject: (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> & { startDate: string | Date }) => Promise<ApiResponse>;
+  updateProject: (projectId: string, updates: Partial<Project>) => Promise<ApiResponse>;
+  deleteProject: (projectId: string) => Promise<ApiResponse>;
   setCurrentProject: (project: Partial<Project> | null) => void;
   
   // Task methods
@@ -49,6 +51,7 @@ interface AppContextType {
     estimatedHours?: number;
   }) => Promise<ApiResponse<Task>>;
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<ApiResponse<Task>>;
+  deleteTask: (taskId: string) => Promise<ApiResponse>;
   
   // User methods
   fetchUsers: () => Promise<void>;
@@ -278,7 +281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const createProject = async (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse> => {
+  const createProject = async (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> & { startDate: string | Date }): Promise<ApiResponse> => {
     try {
       setLoading(true);
       // Map frontend field names to backend field names
@@ -286,6 +289,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         name: projectData.name,
         key: projectData.key,
         description: projectData.description,
+        department: projectData.department,
+        startDate: typeof projectData.startDate === 'string' ? projectData.startDate : projectData.startDate.toISOString(),
+        projectLead: (projectData as any).projectLead || undefined,
+        memberIds: (projectData as any).memberIds || [],
         visibility: 'team',
         tags: []
       };
@@ -399,6 +406,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const deleteTask = async (taskId: string): Promise<ApiResponse> => {
+    try {
+      setLoading(true);
+      const response = await tasksAPI.deleteTask(taskId);
+      
+      if (response.success) {
+        // Refresh tasks for current project
+        if (currentProject?.id) {
+          await fetchTasks(currentProject.id);
+        }
+        return { success: true, message: 'Task deleted successfully' };
+      } else {
+        const errorMessage = response?.message || 'Failed to delete task';
+        setError(errorMessage);
+        return { success: false, message: errorMessage };
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete task';
+      setError(errorMessage);
+      return { success: false, message: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateProject = async (projectId: string, updates: Partial<Project>): Promise<ApiResponse> => {
+    try {
+      setLoading(true);
+      const response = await projectsAPI.updateProject(projectId, updates);
+      
+      if (response.success) {
+        await fetchProjects();
+        return { success: true, message: 'Project updated successfully' };
+      } else {
+        const errorMessage = response?.message || 'Failed to update project';
+        setError(errorMessage);
+        return { success: false, message: errorMessage };
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update project';
+      setError(errorMessage);
+      return { success: false, message: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteProject = async (projectId: string): Promise<ApiResponse> => {
+    try {
+      setLoading(true);
+      const response = await projectsAPI.deleteProject(projectId);
+      
+      if (response.success) {
+        // Clear current project if it's the one being deleted
+        if (currentProject?.id === projectId) {
+          setCurrentProject(null);
+        }
+        await fetchProjects();
+        return { success: true, message: 'Project deleted successfully' };
+      } else {
+        const errorMessage = response?.message || 'Failed to delete project';
+        setError(errorMessage);
+        return { success: false, message: errorMessage };
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete project';
+      setError(errorMessage);
+      return { success: false, message: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // User methods
   const fetchUsers = async () => {
     if (!apiRateLimiter.canCall('fetchUsers')) return;
@@ -407,7 +487,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     
-    if (currentUser?.role === 'admin') {
+    // Admins and Department Heads can see users
+    if (currentUser?.role === 'admin' || currentUser?.role === 'department-head') {
       try {
         const usersResponse = await usersAPI.getUsers();
         if (usersResponse.success && usersResponse.data) {
@@ -443,12 +524,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Project methods
     fetchProjects,
     createProject,
+    updateProject,
+    deleteProject,
     setCurrentProject,
     
     // Task methods
     fetchTasks,
     createTask,
     updateTask,
+    deleteTask,
     
     // User methods
     fetchUsers,

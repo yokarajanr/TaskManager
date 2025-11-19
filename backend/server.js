@@ -23,6 +23,7 @@ app.use(helmet()); // Security headers
 app.use(cors({
   origin: [
     "https://taskmanager-1-ofw0.onrender.com",
+    "https://taskmanager-1-ofw0.onrender.com",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:4173"

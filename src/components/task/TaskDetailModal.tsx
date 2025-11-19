@@ -23,21 +23,28 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, 
   const [commentText, setCommentText] = useState('');
   const [editData, setEditData] = useState<Partial<Task>>({});
   
-  const { updateTask, currentUser, currentProject } = useApp();
+  const { updateTask, deleteTask, currentUser, currentProject } = useApp();
 
   if (!task) return null;
 
-  const handleUpdate = () => {
-    updateTask(task.id, editData);
-    setIsEditing(false);
-    setEditData({});
+  const handleUpdate = async () => {
+    const result = await updateTask(task.id, editData);
+    if (result.success) {
+      setIsEditing(false);
+      setEditData({});
+    } else {
+      alert(result.message || 'Failed to update task');
+    }
   };
 
-  const handleDelete = () => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
-      // Simple delete - this would normally call an API
-      console.log('Deleting task:', task.id);
-      onClose();
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      const result = await deleteTask(task.id);
+      if (result.success) {
+        onClose();
+      } else {
+        alert(result.message || 'Failed to delete task');
+      }
     }
   };
 

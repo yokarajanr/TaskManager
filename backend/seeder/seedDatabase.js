@@ -94,6 +94,8 @@ const sampleProjects = [
     name: 'TaskMaster Pro',
     key: 'TASK',
     description: 'Enterprise task management platform with advanced features',
+    department: 'Engineering',
+    startDate: new Date('2024-01-15'),
     status: 'active',
     visibility: 'team',
     tags: ['web-app', 'task-management', 'react']
@@ -102,6 +104,8 @@ const sampleProjects = [
     name: 'Student Portal',
     key: 'STUD',
     description: 'Comprehensive student management system for educational institutions',
+    department: 'Engineering',
+    startDate: new Date('2024-02-01'),
     status: 'active',
     visibility: 'team',
     tags: ['education', 'student-portal', 'management']
@@ -110,6 +114,8 @@ const sampleProjects = [
     name: 'Library Management',
     key: 'LIB',
     description: 'Digital library management system with book tracking',
+    department: 'IT',
+    startDate: new Date('2024-02-20'),
     status: 'active',
     visibility: 'team',
     tags: ['library', 'books', 'management']

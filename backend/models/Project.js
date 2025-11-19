@@ -22,6 +22,16 @@ const projectSchema = new mongoose.Schema({
     trim: true,
     maxlength: [500, 'Project description cannot be more than 500 characters']
   },
+  department: {
+    type: String,
+    required: [true, 'Department is required'],
+    trim: true,
+    enum: ['Engineering', 'Design', 'Marketing', 'Sales', 'Operations', 'Finance', 'Human Resources', 'Customer Support', 'Research & Development', 'IT']
+  },
+  startDate: {
+    type: Date,
+    required: [true, 'Start date is required']
+  },
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

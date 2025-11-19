@@ -130,7 +130,7 @@ export const tasksAPI = {
 // Users API
 export const usersAPI = {
   getUsers: async () => {
-    const response = await api.get('/admin/users');
+    const response = await api.get('/users');
     return response.data;
   },
   getUser: async (id: string) => {

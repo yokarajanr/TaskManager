@@ -110,6 +110,40 @@ router.put('/password', async (req, res) => {
   }
 });
 
+// @route   GET /api/users
+// @desc    Get all users from same organization (for department heads and admins)
+// @access  Private (Department Heads and Admins only)
+router.get('/', async (req, res) => {
+  try {
+    // Only admins and department heads can view all users
+    if (req.user.role !== 'admin' && req.user.role !== 'department-head') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Only admins and department heads can view users.'
+      });
+    }
+
+    // Get users from same organization, exclude password
+    const users = await User.find({ 
+      organizationId: req.user.organizationId 
+    })
+      .select('-password')
+      .sort({ name: 1 });
+
+    res.json({
+      success: true,
+      data: { users }
+    });
+
+  } catch (error) {
+    console.error('Fetch users error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching users'
+    });
+  }
+});
+
 // @route   GET /api/users/:id
 // @desc    Get user by ID (public info only)
 // @access  Private

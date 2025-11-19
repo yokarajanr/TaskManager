@@ -18,7 +18,15 @@ import { formatDistanceToNow } from 'date-fns';
 export const Dashboard: React.FC = () => {
   const { tasks, currentProject, createProject, currentUser, users, projects } = useApp();
   const [showCreateProject, setShowCreateProject] = useState(false);
-  const [projectName, setProjectName] = useState('');
+  const [newProject, setNewProject] = useState({
+    name: '',
+    description: '',
+    key: '',
+    department: '',
+    startDate: '',
+    projectLead: '',
+    members: [] as string[]
+  });
 
   // Role-based welcome messages
   const getRoleDisplay = (role?: string) => {
@@ -32,8 +40,8 @@ export const Dashboard: React.FC = () => {
   };
 
   const roleInfo = getRoleDisplay(currentUser?.role);
-  // Only Project Leads and Department Heads can create projects (NOT admins)
-  const canCreateProject = currentUser && currentUser.role && ['project-lead', 'department-head'].includes(currentUser.role);
+  // Only Department Heads can create projects (NOT admins, project-leads, or team-members)
+  const canCreateProject = currentUser && currentUser.role === 'department-head';
 
   // Admin-specific stats
   const adminStats = {
@@ -78,15 +86,19 @@ export const Dashboard: React.FC = () => {
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
-    if (projectName.trim() && currentUser) {
+    if (newProject.name.trim() && newProject.department && newProject.startDate && currentUser) {
       createProject({
-        name: projectName.trim(),
-        key: projectName.trim().substring(0, 3).toUpperCase(),
-        description: 'New project',
+        name: newProject.name.trim(),
+        key: newProject.key.trim() || newProject.name.trim().substring(0, 3).toUpperCase(),
+        description: newProject.description.trim() || 'New project',
+        department: newProject.department,
+        startDate: newProject.startDate,
+        projectLead: newProject.projectLead || undefined,
+        memberIds: newProject.members,
         ownerId: currentUser.id,
         members: [currentUser]
       });
-      setProjectName('');
+      setNewProject({ name: '', description: '', key: '', department: '', startDate: '', projectLead: '', members: [] });
       setShowCreateProject(false);
     }
   };
@@ -319,26 +331,143 @@ export const Dashboard: React.FC = () => {
 
       {/* Create Project Modal */}
       {showCreateProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1E1E24]/60 backdrop-blur-sm">
-          <div className="glass rounded-3xl p-8 max-w-md w-full mx-4 border-2 border-[#9B5DE5]/20">
-            <h3 className="text-2xl font-bold text-[#1E1E24] !important mb-6 text-center">Create New Project</h3>
-            <form onSubmit={handleCreateProject} className="space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1E1E24]/60 backdrop-blur-sm p-4">
+          <div className="glass rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col border-2 border-[#9B5DE5]/20">
+            <div className="px-8 pt-8 pb-4">
+              <h3 className="text-2xl font-bold text-[#1E1E24] !important text-center">Create New Project</h3>
+            </div>
+            <form onSubmit={handleCreateProject} className="flex flex-col flex-1 overflow-hidden">
+              <div className="overflow-y-auto px-8 pb-4 space-y-5">
               <div>
-                <label className="block text-sm font-medium text-[#1E1E24] !important mb-2">Project Name</label>
+                <label className="block text-sm font-bold text-[#1E1E24] !important mb-2">
+                  Project Name <span className="text-[#D7263D]">*</span>
+                </label>
                 <input
                   type="text"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
+                  value={newProject.name}
+                  onChange={(e) => setNewProject(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full px-4 py-3 bg-[#E0FBFC] border-2 border-[#9B5DE5]/30 rounded-2xl text-[#1E1E24] placeholder-[#7C6F64] focus:outline-none focus:border-[#9B5DE5] focus:ring-4 focus:ring-[#9B5DE5]/20 transition-all duration-300"
                   placeholder="Enter project name"
                   required
                 />
               </div>
-              <div className="flex justify-end space-x-3">
+              
+              <div>
+                <label className="block text-sm font-bold text-[#1E1E24] !important mb-2">
+                  Project Key <span className="text-[#D7263D]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newProject.key}
+                  onChange={(e) => setNewProject(prev => ({ ...prev, key: e.target.value.toUpperCase() }))}
+                  className="w-full px-4 py-3 bg-[#E0FBFC] border-2 border-[#9B5DE5]/30 rounded-2xl text-[#1E1E24] placeholder-[#7C6F64] focus:outline-none focus:border-[#9B5DE5] focus:ring-4 focus:ring-[#9B5DE5]/20 transition-all duration-300 uppercase"
+                  placeholder="e.g., PROJ01"
+                  maxLength={10}
+                  required
+                />
+                <p className="text-xs text-[#7C6F64] !important mt-1">Unique short identifier</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-bold text-[#1E1E24] !important mb-2">
+                  Description <span className="text-[#D7263D]">*</span>
+                </label>
+                <textarea
+                  value={newProject.description}
+                  onChange={(e) => setNewProject(prev => ({ ...prev, description: e.target.value }))}
+                  rows={4}
+                  className="w-full px-4 py-3 bg-[#E0FBFC] border-2 border-[#9B5DE5]/30 rounded-2xl text-[#1E1E24] placeholder-[#7C6F64] focus:outline-none focus:border-[#9B5DE5] focus:ring-4 focus:ring-[#9B5DE5]/20 transition-all duration-300 resize-none"
+                  placeholder="Summary of project goals and scope"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-[#1E1E24] !important mb-2">
+                  Department <span className="text-[#D7263D]">*</span>
+                </label>
+                <select
+                  value={newProject.department}
+                  onChange={(e) => setNewProject(prev => ({ ...prev, department: e.target.value }))}
+                  className="w-full px-4 py-3 bg-[#E0FBFC] border-2 border-[#9B5DE5]/30 rounded-2xl text-[#1E1E24] focus:outline-none focus:border-[#9B5DE5] focus:ring-4 focus:ring-[#9B5DE5]/20 transition-all duration-300"
+                  required
+                >
+                  <option value="">Select department</option>
+                  <option value="Engineering">Engineering</option>
+                  <option value="Design">Design</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Sales">Sales</option>
+                  <option value="Operations">Operations</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Human Resources">Human Resources</option>
+                  <option value="Customer Support">Customer Support</option>
+                  <option value="Research & Development">Research & Development</option>
+                  <option value="IT">IT</option>
+                </select>
+                <p className="text-xs text-[#7C6F64] !important mt-1">Select the department that owns this project</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-[#1E1E24] !important mb-2">
+                  Start Date <span className="text-[#D7263D]">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={newProject.startDate}
+                  onChange={(e) => setNewProject(prev => ({ ...prev, startDate: e.target.value }))}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-4 py-3 bg-[#E0FBFC] border-2 border-[#9B5DE5]/30 rounded-2xl text-[#1E1E24] focus:outline-none focus:border-[#9B5DE5] focus:ring-4 focus:ring-[#9B5DE5]/20 transition-all duration-300"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-[#1E1E24] !important mb-2">
+                  Project Lead
+                </label>
+                <select
+                  value={newProject.projectLead}
+                  onChange={(e) => setNewProject(prev => ({ ...prev, projectLead: e.target.value }))}
+                  className="w-full px-4 py-3 bg-[#E0FBFC] border-2 border-[#9B5DE5]/30 rounded-2xl text-[#1E1E24] focus:outline-none focus:border-[#9B5DE5] focus:ring-4 focus:ring-[#9B5DE5]/20 transition-all duration-300"
+                >
+                  <option value="">Select project lead (optional)</option>
+                  {(users || [])
+                    .filter((u: any) => u.role === 'project-lead' && u.organizationId === currentUser?.organizationId && u.isApproved)
+                    .map((user: any) => (
+                      <option key={user.id || user._id} value={user.id || user._id}>{user.name}</option>
+                    ))}
+                </select>
+                <p className="text-xs text-[#7C6F64] !important mt-1">Assign a project lead to manage this project</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-[#1E1E24] !important mb-2">
+                  Team Members
+                </label>
+                <select
+                  multiple
+                  value={newProject.members}
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.selectedOptions, option => option.value);
+                    setNewProject(prev => ({ ...prev, members: selected }));
+                  }}
+                  className="w-full px-4 py-3 bg-[#E0FBFC] border-2 border-[#9B5DE5]/30 rounded-2xl text-[#1E1E24] focus:outline-none focus:border-[#9B5DE5] focus:ring-4 focus:ring-[#9B5DE5]/20 transition-all duration-300 min-h-[120px]"
+                >
+                  {(users || [])
+                    .filter((u: any) => u.role === 'team-member' && u.organizationId === currentUser?.organizationId && u.isApproved)
+                    .map((user: any) => (
+                      <option key={user.id || user._id} value={user.id || user._id}>{user.name}</option>
+                    ))}
+                </select>
+                <p className="text-xs text-[#7C6F64] !important mt-1">Hold Ctrl/Cmd to select multiple members</p>
+              </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 px-8 py-4 border-t-2 border-[#9B5DE5]/20 bg-white/50 backdrop-blur-sm mt-auto">
                 <Button type="button" variant="secondary" onClick={() => setShowCreateProject(false)} className="btn-secondary">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={!projectName.trim()} className="btn-primary">
+                <Button type="submit" disabled={!newProject.name.trim() || !newProject.key.trim() || !newProject.description.trim() || !newProject.department || !newProject.startDate} className="btn-primary">
                   Create Project
                 </Button>
               </div>

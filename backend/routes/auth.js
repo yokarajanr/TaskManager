@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { body, validationResult } from 'express-validator';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
+import Organization from '../models/Organization.js';
 
 const router = express.Router();
 
@@ -35,7 +36,23 @@ router.post('/register', [
       });
     }
 
-    const { name, email, password } = req.body;
+    const { name, email, password, organizationCode } = req.body;
+
+    // Validate organization code
+    if (!organizationCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization code is required'
+      });
+    }
+
+    const organization = await Organization.validateCode(organizationCode);
+    if (!organization) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or inactive organization code'
+      });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -46,11 +63,13 @@ router.post('/register', [
       });
     }
 
-    // Create new user
+    // Create new user with organization code
     const user = new User({
       name,
       email,
-      password
+      password,
+      role: 'team-member', // Default role for new users
+      organizationId: organization.code // Assign to organization
     });
 
     await user.save();
@@ -63,10 +82,11 @@ router.post('/register', [
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully',
+      message: 'Registration successful! Your account is pending admin approval. You will be able to login once an administrator approves your account.',
+      requiresApproval: true,
       data: {
         user: userResponse,
-        token
+        token: null // Don't provide token until approved
       }
     });
 
@@ -147,6 +167,14 @@ router.post('/login', [
       });
     }
 
+    // Check if user is approved by admin
+    if (!user.isApproved) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is pending admin approval. Please wait for an administrator to approve your registration.'
+      });
+    }
+
     // Check password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
@@ -214,6 +242,13 @@ router.post('/verify', async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Account is deactivated'
+      });
+    }
+
+    if (!user.isApproved) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is pending admin approval'
       });
     }
 

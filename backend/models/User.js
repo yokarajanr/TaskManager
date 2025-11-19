@@ -31,9 +31,28 @@ const userSchema = new mongoose.Schema({
     enum: ['team-member', 'project-lead', 'department-head', 'admin'],
     default: 'team-member'
   },
+  organizationId: {
+    type: String,
+    default: 'default-org', // Support for multi-tenant organizations
+    index: true
+  },
   isActive: {
     type: Boolean,
     default: true
+  },
+  isApproved: {
+    type: Boolean,
+    default: false, // New users need admin approval
+    index: true
+  },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  approvedAt: {
+    type: Date,
+    default: null
   },
   lastLogin: {
     type: Date,
@@ -77,6 +96,8 @@ userSchema.methods.getPublicProfile = function() {
 
 // Index for better query performance (email is already indexed by unique: true)
 userSchema.index({ role: 1 });
+userSchema.index({ organizationId: 1, isApproved: 1 });
+userSchema.index({ organizationId: 1, role: 1 });
 
 const User = mongoose.model('User', userSchema);
 

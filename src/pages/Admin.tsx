@@ -3,10 +3,9 @@ import { useApp } from '../contexts/AppContext';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { AdminLayout } from '../components/layout/AdminLayout';
-import { User, Project } from '../types';
-import { usersAPI } from '../services/api';
+import { User, Project, Organization } from '../types';
+import { usersAPI, adminAPI } from '../services/api';
 import { apiRateLimiter } from '../utils/rateLimiter';
-import { RenderTracker } from '../utils/RenderTracker';
 
 type UserRole = 'team-member' | 'project-lead' | 'department-head' | 'admin';
 import { 
@@ -107,14 +106,17 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
             className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
             disabled={loading}
           >
-            <option value="team-member">Team Member</option>
-            <option value="project-lead">Project Lead</option>
-            <option value="department-head">Department Head</option>
-            <option value="admin">Admin</option>
+            <option value="team-member">Team Member - Works on assigned tasks</option>
+            <option value="project-lead">Project Lead - Manages tasks, assigns to team</option>
+            <option value="department-head">Department Head - Creates projects, assigns leads</option>
+            <option value="admin">Admin - View-only projects, manages users/settings</option>
           </select>
-          <p className="text-xs text-gray-400 mt-1">
-            Select the appropriate role based on the user's responsibilities and required access level.
-          </p>
+          <div className="text-xs text-gray-400 mt-2 space-y-1">
+            {formData.role === 'admin' && <p>✓ View-only on projects, manages users and system settings</p>}
+            {formData.role === 'department-head' && <p>✓ Creates projects and assigns project leads</p>}
+            {formData.role === 'project-lead' && <p>✓ Manages project tasks, assigns them to team members</p>}
+            {formData.role === 'team-member' && <p>✓ Works on tasks assigned by project leads</p>}
+          </div>
         </div>
         {error && (
           <div className="text-sm text-red-400 bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-center">
@@ -212,11 +214,17 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onCr
             className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
             disabled={loading}
           >
-            <option value="team-member">Team Member</option>
-            <option value="project-lead">Project Lead</option>
-            <option value="department-head">Department Head</option>
-            <option value="admin">Admin</option>
+            <option value="team-member">Team Member - Works on assigned tasks</option>
+            <option value="project-lead">Project Lead - Manages tasks, assigns to team</option>
+            <option value="department-head">Department Head - Creates projects, assigns leads</option>
+            <option value="admin">Admin - View-only projects, manages users/settings</option>
           </select>
+          <div className="text-xs text-gray-400 mt-2 space-y-1">
+            {formData.role === 'admin' && <p>✓ View-only on projects, manages users and system settings</p>}
+            {formData.role === 'department-head' && <p>✓ Creates projects and assigns project leads</p>}
+            {formData.role === 'project-lead' && <p>✓ Manages project tasks, assigns them to team members</p>}
+            {formData.role === 'team-member' && <p>✓ Works on tasks assigned by project leads</p>}
+          </div>
         </div>
         {error && (
           <div className="text-sm text-red-400 bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-center">
@@ -339,7 +347,220 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
   );
 };
 
-type AdminTab = 'dashboard' | 'users' | 'projects' | 'tasks' | 'system' | 'analytics';
+type AdminTab = 'dashboard' | 'users' | 'organizations' | 'projects' | 'tasks' | 'system' | 'analytics';
+
+// Create Organization Modal
+interface CreateOrgModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreate: (name: string, description: string) => Promise<{ ok: boolean; message?: string }>;
+}
+
+const CreateOrgModal: React.FC<CreateOrgModalProps> = ({ isOpen, onClose, onCreate }) => {
+  const [formData, setFormData] = useState({ name: '', description: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [createdCode, setCreatedCode] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setCreatedCode('');
+    
+    try {
+      const result = await onCreate(formData.name, formData.description);
+      if (result.ok) {
+        setCreatedCode('Organization created! Share the code with your team.');
+        setTimeout(() => {
+          onClose();
+          setFormData({ name: '', description: '' });
+          setCreatedCode('');
+        }, 3000);
+      } else {
+        setError(result.message || 'Failed to create organization');
+      }
+    } catch (error) {
+      setError('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Create Organization">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Organization Name</label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+            placeholder="Enter organization name"
+            required
+            disabled={loading}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Description (Optional)</label>
+          <textarea
+            value={formData.description}
+            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+            className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+            placeholder="Brief description of the organization"
+            rows={3}
+            disabled={loading}
+          />
+        </div>
+        {error && (
+          <div className="text-sm text-red-400 bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-center">
+            {error}
+          </div>
+        )}
+        {createdCode && (
+          <div className="text-sm text-green-400 bg-green-500/20 border border-green-500/30 rounded-lg p-3 text-center">
+            {createdCode}
+          </div>
+        )}
+        <div className="flex justify-end space-x-3 pt-6">
+          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? 'Creating...' : 'Create Organization'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+// Pending Users Component
+const PendingUsersSection: React.FC = () => {
+  const [pendingUsers, setPendingUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const fetchPendingUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await adminAPI.getPendingUsers();
+      if (response.success) {
+        setPendingUsers(response.data.users);
+      }
+    } catch (error) {
+      console.error('Failed to fetch pending users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingUsers();
+  }, []);
+
+  const handleApprove = async (userId: string, userName: string) => {
+    try {
+      setActionLoading(userId);
+      const response = await adminAPI.approveUser(userId);
+      if (response.success) {
+        alert(`✅ ${userName} has been approved!`);
+        // Remove from pending list
+        setPendingUsers(prev => prev.filter(u => u.id !== userId));
+      }
+    } catch (error: any) {
+      alert(`Failed to approve user: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReject = async (userId: string, userName: string) => {
+    const reason = prompt(`Enter reason for rejecting ${userName}:`);
+    if (!reason) return;
+
+    try {
+      setActionLoading(userId);
+      const response = await adminAPI.rejectUser(userId, reason);
+      if (response.success) {
+        alert(`❌ ${userName}'s registration has been rejected.`);
+        // Remove from pending list
+        setPendingUsers(prev => prev.filter(u => u.id !== userId));
+      }
+    } catch (error: any) {
+      alert(`Failed to reject user: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="glass rounded-2xl p-6">
+        <div className="flex items-center space-x-3">
+          <Clock className="w-5 h-5 text-yellow-400 animate-spin" />
+          <p className="text-gray-400">Loading pending users...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (pendingUsers.length === 0) {
+    return null; // Don't show section if no pending users
+  }
+
+  return (
+    <div className="glass rounded-2xl p-6 border-2 border-yellow-500/30">
+      <div className="flex items-center space-x-3 mb-4">
+        <Bell className="w-6 h-6 text-yellow-400" />
+        <h3 className="text-xl font-semibold text-white">Pending Approvals</h3>
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+          {pendingUsers.length} waiting
+        </span>
+      </div>
+      <p className="text-sm text-gray-400 mb-4">
+        These users are waiting for admin approval to access the system
+      </p>
+      <div className="space-y-3">
+        {pendingUsers.map(user => (
+          <div key={user.id} className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-yellow-500/20">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-full flex items-center justify-center">
+                <UserIcon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-base font-medium text-white">{user.name}</p>
+                <p className="text-sm text-gray-400">{user.email}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Registered: {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Recently'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                size="sm"
+                onClick={() => handleApprove(user.id, user.name)}
+                disabled={actionLoading === user.id}
+                className="bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/30"
+              >
+                {actionLoading === user.id ? 'Processing...' : '✓ Approve'}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => handleReject(user.id, user.name)}
+                disabled={actionLoading === user.id}
+              >
+                {actionLoading === user.id ? 'Processing...' : '✗ Reject'}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export const Admin: React.FC = () => {
   const { users, projects, tasks, currentUser, createProject, fetchUsers, fetchProjects, fetchTasks } = useApp();
@@ -348,6 +569,8 @@ export const Admin: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
+  const [showCreateOrg, setShowCreateOrg] = useState(false);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -557,6 +780,38 @@ export const Admin: React.FC = () => {
     }
   }, [fetchUsers]);
 
+  // Fetch organizations
+  const fetchOrganizations = React.useCallback(async () => {
+    try {
+      const result = await adminAPI.getOrganizations();
+      if (result.success) {
+        setOrganizations(result.data.organizations);
+      }
+    } catch (error) {
+      console.error('Failed to fetch organizations:', error);
+    }
+  }, []);
+
+  // Load organizations when tab changes
+  React.useEffect(() => {
+    if (activeTab === 'organizations') {
+      fetchOrganizations();
+    }
+  }, [activeTab, fetchOrganizations]);
+
+  const handleCreateOrganization = async (name: string, description: string) => {
+    try {
+      const result = await adminAPI.createOrganization(name, description);
+      if (result.success) {
+        await fetchOrganizations();
+        return { ok: true };
+      }
+      return { ok: false, message: result.message };
+    } catch (error: any) {
+      return { ok: false, message: error.response?.data?.message || 'Failed to create organization' };
+    }
+  };
+
   if (!currentUser || currentUser.role !== 'admin') {
     return (
       <div className="p-8 text-center">
@@ -711,6 +966,91 @@ export const Admin: React.FC = () => {
           </div>
         );
 
+      case 'organizations':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-semibold text-white">Organization Management</h2>
+              <Button onClick={() => setShowCreateOrg(true)}>
+                <Globe className="w-4 h-4 mr-2" />
+                Create Organization
+              </Button>
+            </div>
+
+            {/* Organizations List */}
+            <div className="glass rounded-2xl overflow-hidden">
+              {organizations.length === 0 ? (
+                <div className="p-8 text-center">
+                  <div className="w-16 h-16 bg-gray-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Globe className="w-8 h-8 text-gray-500" />
+                  </div>
+                  <h3 className="text-lg font-medium text-white mb-2">No Organizations</h3>
+                  <p className="text-gray-400 mb-4">Create your first organization to start managing users.</p>
+                  <Button onClick={() => setShowCreateOrg(true)}>
+                    <Globe className="w-4 h-4 mr-2" />
+                    Create Organization
+                  </Button>
+                </div>
+              ) : (
+                <div className="divide-y divide-white/10">
+                  {organizations.map(org => (
+                    <div key={org._id} className="p-6 hover:bg-slate-800/30 transition-all duration-200">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-4 flex-1">
+                          <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-blue-600 rounded-xl flex items-center justify-center">
+                            <Globe className="w-6 h-6 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <p className="text-lg font-medium text-white">{org.name}</p>
+                              {org.isActive ? (
+                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                                  Active
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                                  Inactive
+                                </span>
+                              )}
+                            </div>
+                            {org.description && (
+                              <p className="text-sm text-gray-400 mb-2">{org.description}</p>
+                            )}
+                            <div className="flex items-center space-x-4 text-sm">
+                              <div className="flex items-center space-x-2">
+                                <Lock className="w-4 h-4 text-blue-400" />
+                                <span className="font-mono text-blue-400 font-semibold">{org.code}</span>
+                              </div>
+                              <div className="flex items-center space-x-2 text-gray-400">
+                                <Users className="w-4 h-4" />
+                                <span>{org.memberCount} members</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              const newStatus = !org.isActive;
+                              adminAPI.updateOrganization(org._id, { isActive: newStatus })
+                                .then(() => fetchOrganizations())
+                                .catch(err => alert('Failed to update: ' + err.message));
+                            }}
+                          >
+                            {org.isActive ? 'Deactivate' : 'Activate'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
       case 'users':
         return (
           <div className="space-y-6">
@@ -727,6 +1067,9 @@ export const Admin: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Pending Users Section */}
+            <PendingUsersSection />
             
             <div className="glass rounded-2xl overflow-hidden">
               {!users || users.length === 0 ? (
@@ -1090,7 +1433,6 @@ export const Admin: React.FC = () => {
 
   return (
     <AdminLayout activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab as AdminTab)}>
-      <RenderTracker name="Admin" deps={[users, projects, tasks, currentUser, dataLoaded]} />
       <div className="space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1152,6 +1494,14 @@ export const Admin: React.FC = () => {
             isOpen={showCreateProject}
             onClose={() => setShowCreateProject(false)}
             onCreate={handleCreateProject}
+          />
+        )}
+
+        {showCreateOrg && (
+          <CreateOrgModal
+            isOpen={showCreateOrg}
+            onClose={() => setShowCreateOrg(false)}
+            onCreate={handleCreateOrganization}
           />
         )}
 

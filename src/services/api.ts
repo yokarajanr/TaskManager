@@ -52,8 +52,8 @@ export const authAPI = {
     const response = await api.post('/auth/login', { email, password });
     return response.data;
   },
-  register: async (name: string, email: string, password: string) => {
-    const response = await api.post('/auth/register', { name, email, password });
+  register: async (name: string, email: string, password: string, organizationCode: string) => {
+    const response = await api.post('/auth/register', { name, email, password, organizationCode });
     return response.data;
   },
   getMe: async () => {
@@ -195,6 +195,39 @@ export const adminAPI = {
   },
   deleteTask: async (id: string) => {
     const response = await api.delete(`/admin/tasks/${id}`);
+    return response.data;
+  },
+  getPendingUsers: async () => {
+    const response = await api.get('/admin/users/pending');
+    return response.data;
+  },
+  approveUser: async (id: string) => {
+    const response = await api.post(`/admin/users/${id}/approve`);
+    return response.data;
+  },
+  rejectUser: async (id: string, reason?: string) => {
+    const response = await api.post(`/admin/users/${id}/reject`, { reason });
+    return response.data;
+  },
+  // Organization management
+  getOrganizations: async () => {
+    const response = await api.get('/admin/organizations');
+    return response.data;
+  },
+  createOrganization: async (name: string, description?: string) => {
+    const response = await api.post('/admin/organizations', { name, description });
+    return response.data;
+  },
+  updateOrganization: async (id: string, updates: any) => {
+    const response = await api.put(`/admin/organizations/${id}`, updates);
+    return response.data;
+  },
+  deleteOrganization: async (id: string) => {
+    const response = await api.delete(`/admin/organizations/${id}`);
+    return response.data;
+  },
+  getOrgPendingUsers: async (code: string) => {
+    const response = await api.get(`/admin/organizations/${code}/pending-users`);
     return response.data;
   },
 };

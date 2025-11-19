@@ -41,6 +41,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const adminTabs = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3, description: 'Overview & metrics' },
     { id: 'users', label: 'Users', icon: Users, description: 'User management' },
+    { id: 'organizations', label: 'Organizations', icon: Shield, description: 'Organization codes' },
     { id: 'projects', label: 'Projects', icon: FolderOpen, description: 'Project control' },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare, description: 'Task management' },
     { id: 'system', label: 'System', icon: Settings, description: 'System settings' },

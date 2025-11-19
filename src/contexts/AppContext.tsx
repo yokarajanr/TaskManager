@@ -27,7 +27,7 @@ interface AppContextType {
   
   // Auth methods
   login: (email: string, password: string) => Promise<ApiResponse>;
-  register: (name: string, email: string, password: string) => Promise<ApiResponse>;
+  register: (name: string, email: string, password: string, organizationCode: string) => Promise<ApiResponse>;
   logout: () => void;
   
   // Project methods
@@ -186,17 +186,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const register = async (name: string, email: string, password: string): Promise<ApiResponse> => {
+  const register = async (name: string, email: string, password: string, organizationCode: string): Promise<ApiResponse> => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await authAPI.register(name, email, password);
+      console.log('🔐 AppContext: Registering user...', { name, email, organizationCode });
+      const response = await authAPI.register(name, email, password, organizationCode);
+      console.log('🔐 AppContext: Registration response:', response);
       
-      if (response.success && response.data) {
-        const { user, token } = response.data;
-        setAuthToken(token);
-        setCurrentUser(user);
+      if (response.success) {
+        // Check if user requires approval
+        if (response.requiresApproval) {
+          console.log('⏳ AppContext: User requires approval, not logging in');
+          // User needs admin approval - don't login yet
+          return { 
+            success: true, 
+            requiresApproval: true,
+            message: response.message || 'Your account is pending approval. Please wait for an administrator to approve your registration.'
+          };
+        }
+        
+        console.log('✅ AppContext: User auto-approved, logging in');
+        // User is auto-approved (created by admin) - login directly
+        if (response.data) {
+          const { user, token } = response.data;
+          if (token) {
+            setAuthToken(token);
+            setCurrentUser(user);
+          }
+        }
         return { success: true };
       } else {
         const errorMessage = response?.message || 'Registration failed';
@@ -204,6 +223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, message: errorMessage };
       }
     } catch (err) {
+      console.error('❌ AppContext: Registration error:', err);
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       setError(errorMessage);
       return { success: false, message: errorMessage };
@@ -234,7 +254,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const response = await projectsAPI.getProjects();
       if (response.success && response.data) {
-        setProjects(response.data.projects || response.data);
+        const projectsData = response.data.projects || response.data;
+        // Map MongoDB _id to id for frontend compatibility
+        const mappedProjects = projectsData.map((project: any) => ({
+          ...project,
+          id: project._id || project.id
+        }));
+        setProjects(mappedProjects);
+        
+        // Auto-select first project if no current project is set
+        if (mappedProjects.length > 0 && !currentProject) {
+          setCurrentProject(mappedProjects[0]);
+        }
+        
         setAuthFailureCount(0); // Reset on success
       }
     } catch (err: any) {

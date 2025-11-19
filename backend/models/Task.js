@@ -33,6 +33,11 @@ const taskSchema = new mongoose.Schema({
     ref: 'Project',
     required: [true, 'Project is required']
   },
+  organizationId: {
+    type: String,
+    required: [true, 'Organization ID is required'],
+    index: true // For multi-tenant data isolation
+  },
   assignee: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

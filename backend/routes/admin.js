@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Project from '../models/Project.js';
 import Task from '../models/Task.js';
+import Organization from '../models/Organization.js';
 
 const router = express.Router();
 
@@ -113,8 +114,10 @@ router.get('/users', requireAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 20, search = '', role = '' } = req.query;
     
-    // Build query
-    let query = {};
+    // Build query - filter by organization
+    let query = {
+      organizationId: req.user.organizationId // Only show users from admin's organization
+    };
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -172,12 +175,16 @@ router.post('/users', requireAdmin, async (req, res) => {
       });
     }
 
-    // Create new user
+    // Create new user in admin's organization
     const user = new User({
       name,
       email,
       password,
-      role
+      role,
+      organizationId: req.user.organizationId, // Assign to admin's organization
+      isApproved: true, // Auto-approve users created by admin
+      approvedBy: req.user._id,
+      approvedAt: new Date()
     });
 
     await user.save();
@@ -457,6 +464,374 @@ router.delete('/tasks/:id', requireAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error deleting task'
+    });
+  }
+});
+
+// @route   GET /api/admin/users/pending
+// @desc    Get all pending (unapproved) users
+// @access  Admin only
+router.get('/users/pending', requireAdmin, async (req, res) => {
+  try {
+    // Admin can only see pending users from their organization
+    const pendingUsers = await User.find({ 
+      isApproved: false,
+      organizationId: req.user.organizationId 
+    })
+      .select('-password')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: {
+        users: pendingUsers,
+        count: pendingUsers.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Pending users fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching pending users'
+    });
+  }
+});
+
+// @route   POST /api/admin/users/:id/approve
+// @desc    Approve a pending user
+// @access  Admin only
+router.post('/users/:id/approve', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if user belongs to admin's organization
+    if (user.organizationId !== req.user.organizationId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only approve users from your organization'
+      });
+    }
+
+    if (user.isApproved) {
+      return res.status(400).json({
+        success: false,
+        message: 'User is already approved'
+      });
+    }
+
+    // Approve the user
+    user.isApproved = true;
+    user.approvedBy = req.user._id;
+    user.approvedAt = new Date();
+    await user.save();
+
+    res.json({
+      success: true,
+      message: `User ${user.name} has been approved successfully`,
+      data: { user: user.getPublicProfile() }
+    });
+
+  } catch (error) {
+    console.error('User approval error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error approving user'
+    });
+  }
+});
+
+// @route   POST /api/admin/users/:id/reject
+// @desc    Reject a pending user (delete the account)
+// @access  Admin only
+router.post('/users/:id/reject', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if user belongs to admin's organization
+    if (user.organizationId !== req.user.organizationId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only reject users from your organization'
+      });
+    }
+
+    if (user.isApproved) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot reject an approved user. Use deactivate instead.'
+      });
+    }
+
+    // Delete the user account
+    await User.findByIdAndDelete(id);
+
+    res.json({
+      success: true,
+      message: `User registration for ${user.email} has been rejected and removed`,
+      reason: reason || 'No reason provided'
+    });
+
+  } catch (error) {
+    console.error('User rejection error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error rejecting user'
+    });
+  }
+});
+
+// ==================== ORGANIZATION MANAGEMENT ====================
+
+// @route   GET /api/admin/organizations
+// @desc    Get all organizations for this admin
+// @access  Admin only
+router.get('/organizations', requireAdmin, async (req, res) => {
+  try {
+    const organizations = await Organization.find({ adminId: req.user._id })
+      .sort({ createdAt: -1 });
+
+    // Get member counts for each organization
+    const orgsWithCounts = await Promise.all(
+      organizations.map(async (org) => {
+        const memberCount = await User.countDocuments({ 
+          organizationId: org.code,
+          isApproved: true 
+        });
+        return {
+          ...org.toObject(),
+          memberCount
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: { organizations: orgsWithCounts }
+    });
+
+  } catch (error) {
+    console.error('Organizations fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching organizations'
+    });
+  }
+});
+
+// @route   POST /api/admin/organizations
+// @desc    Create a new organization code
+// @access  Admin only
+router.post('/organizations', requireAdmin, async (req, res) => {
+  try {
+    const { name, description } = req.body;
+
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization name is required'
+      });
+    }
+
+    // Generate unique code
+    let code = Organization.generateCode(name);
+    let isUnique = false;
+    let attempts = 0;
+
+    // Ensure code is unique
+    while (!isUnique && attempts < 10) {
+      const existing = await Organization.findOne({ code });
+      if (!existing) {
+        isUnique = true;
+      } else {
+        code = Organization.generateCode(name);
+        attempts++;
+      }
+    }
+
+    if (!isUnique) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to generate unique organization code'
+      });
+    }
+
+    // Create organization
+    const organization = new Organization({
+      name: name.trim(),
+      description: description?.trim() || '',
+      code,
+      adminId: req.user._id
+    });
+
+    await organization.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Organization created successfully',
+      data: { organization }
+    });
+
+  } catch (error) {
+    console.error('Organization creation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating organization'
+    });
+  }
+});
+
+// @route   PUT /api/admin/organizations/:id
+// @desc    Update organization details
+// @access  Admin only
+router.put('/organizations/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, isActive } = req.body;
+
+    const organization = await Organization.findOne({
+      _id: id,
+      adminId: req.user._id
+    });
+
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        message: 'Organization not found'
+      });
+    }
+
+    if (name) organization.name = name.trim();
+    if (description !== undefined) organization.description = description.trim();
+    if (isActive !== undefined) organization.isActive = isActive;
+
+    await organization.save();
+
+    res.json({
+      success: true,
+      message: 'Organization updated successfully',
+      data: { organization }
+    });
+
+  } catch (error) {
+    console.error('Organization update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating organization'
+    });
+  }
+});
+
+// @route   DELETE /api/admin/organizations/:id
+// @desc    Delete organization (soft delete - deactivate)
+// @access  Admin only
+router.delete('/organizations/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const organization = await Organization.findOne({
+      _id: id,
+      adminId: req.user._id
+    });
+
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        message: 'Organization not found'
+      });
+    }
+
+    // Check if there are members
+    const memberCount = await User.countDocuments({ 
+      organizationId: organization.code 
+    });
+
+    if (memberCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete organization with ${memberCount} members. Please reassign members first.`
+      });
+    }
+
+    // Soft delete
+    organization.isActive = false;
+    await organization.save();
+
+    res.json({
+      success: true,
+      message: 'Organization deactivated successfully'
+    });
+
+  } catch (error) {
+    console.error('Organization deletion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting organization'
+    });
+  }
+});
+
+// @route   GET /api/admin/organizations/:code/pending-users
+// @desc    Get pending users for a specific organization
+// @access  Admin only
+router.get('/organizations/:code/pending-users', requireAdmin, async (req, res) => {
+  try {
+    const { code } = req.params;
+
+    // Verify organization belongs to this admin
+    const organization = await Organization.findOne({
+      code: code.toUpperCase(),
+      adminId: req.user._id
+    });
+
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        message: 'Organization not found'
+      });
+    }
+
+    const pendingUsers = await User.find({ 
+      organizationId: code.toUpperCase(),
+      isApproved: false 
+    })
+      .select('-password')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: {
+        organization: {
+          name: organization.name,
+          code: organization.code
+        },
+        users: pendingUsers,
+        count: pendingUsers.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Pending users fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching pending users'
     });
   }
 });

@@ -1,40 +1,9 @@
 import express from 'express';
-import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import Project from '../models/Project.js';
+import { requireAuth, requireAdmin } from '../middleware/permissions.js';
 
 const router = express.Router();
-
-// Middleware to verify authentication
-const requireAuth = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access denied. No token provided.'
-      });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-    const user = await User.findById(decoded.userId);
-    
-    if (!user || !user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found or inactive'
-      });
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
-  }
-};
 
 // Apply auth middleware to all routes
 router.use(requireAuth);
@@ -167,6 +136,118 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching user'
+    });
+  }
+});
+
+// @route   GET /api/users/my-teams
+// @desc    Get teams/projects for current user
+// @access  Private
+router.get('/my-teams', async (req, res) => {
+  try {
+    // Get all projects where user is a member
+    const projects = await Project.find({
+      'members.user': req.user._id
+    })
+      .populate('owner', 'name email avatar role')
+      .populate('members.user', 'name email avatar role')
+      .sort({ updatedAt: -1 });
+
+    // Format the response with detailed team information
+    const teams = projects.map(project => {
+      // Get user's role in this project
+      const userMember = project.members.find(m => m.user._id.toString() === req.user._id.toString());
+      
+      return {
+        projectId: project._id,
+        projectName: project.name,
+        projectKey: project.key,
+        projectDescription: project.description,
+        projectStatus: project.status,
+        userRoleInProject: userMember?.role || 'member',
+        joinedAt: userMember?.joinedAt,
+        owner: {
+          id: project.owner._id,
+          name: project.owner.name,
+          email: project.owner.email,
+          avatar: project.owner.avatar,
+          role: project.owner.role
+        },
+        teamMembers: project.members.map(m => ({
+          id: m.user._id,
+          name: m.user.name,
+          email: m.user.email,
+          avatar: m.user.avatar,
+          role: m.user.role,
+          projectRole: m.role,
+          joinedAt: m.joinedAt
+        })),
+        memberCount: project.members.length,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt
+      };
+    });
+
+    res.json({
+      success: true,
+      data: { 
+        teams,
+        totalTeams: teams.length,
+        userRole: req.user.role
+      }
+    });
+
+  } catch (error) {
+    console.error('My teams fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching teams'
+    });
+  }
+});
+
+// @route   GET /api/users/team-stats
+// @desc    Get team statistics for current user
+// @access  Private
+router.get('/team-stats', async (req, res) => {
+  try {
+    const projects = await Project.find({
+      'members.user': req.user._id
+    });
+
+    const Task = (await import('../models/Task.js')).default;
+    
+    let totalTasks = 0;
+    let assignedTasks = 0;
+    let completedTasks = 0;
+
+    for (const project of projects) {
+      const projectTasks = await Task.find({ project: project._id });
+      totalTasks += projectTasks.length;
+      
+      const userTasks = projectTasks.filter(t => 
+        t.assignee && t.assignee.toString() === req.user._id.toString()
+      );
+      assignedTasks += userTasks.length;
+      completedTasks += userTasks.filter(t => t.status === 'done').length;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        projectCount: projects.length,
+        totalTasks,
+        assignedTasks,
+        completedTasks,
+        completionRate: assignedTasks > 0 ? Math.round((completedTasks / assignedTasks) * 100) : 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Team stats fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching team statistics'
     });
   }
 });

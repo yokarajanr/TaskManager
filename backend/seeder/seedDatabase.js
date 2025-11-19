@@ -4,9 +4,26 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import Project from '../models/Project.js';
 import Task from '../models/Task.js';
+import Organization from '../models/Organization.js';
 import { connectDB } from '../config/database.js';
 
 dotenv.config();
+
+// Sample organizations
+const sampleOrganizations = [
+  {
+    name: 'Kongu Engineering College',
+    code: 'ORG001',
+    description: 'Main organization for Kongu Engineering College',
+    isActive: true
+  },
+  {
+    name: 'Tech Innovations Inc',
+    code: 'ORG002',
+    description: 'Technology and innovation company',
+    isActive: true
+  }
+];
 
 // Sample data
 const sampleUsers = [
@@ -15,34 +32,59 @@ const sampleUsers = [
     email: 'yokarajanr.23it@kongu.edu',
     password: 'password123',
     role: 'admin',
+    organizationId: 'ORG001',
+    isActive: true,
+    isApproved: true,
     avatar: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop&crop=face'
+  },
+  {
+    name: 'ADMIN2',
+    email: 'admin2@gmail.com',
+    password: 'password123',
+    role: 'admin',
+    organizationId: 'ORG002',
+    isActive: true,
+    isApproved: true,
+    avatar: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop&crop=face'
   },
   {
     name: 'Jane Smith',
     email: 'jane.smith@example.com',
     password: 'password123',
-    role: 'user',
+    role: 'team-member',
+    organizationId: 'ORG001',
+    isActive: true,
+    isApproved: true,
     avatar: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop&crop=face'
   },
   {
     name: 'Mike Johnson',
     email: 'mike.johnson@example.com',
     password: 'password123',
-    role: 'user',
+    role: 'department-head',
+    organizationId: 'ORG001',
+    isActive: true,
+    isApproved: true,
     avatar: 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop&crop=face'
   },
   {
     name: 'Sarah Wilson',
     email: 'sarah.wilson@example.com',
     password: 'password123',
-    role: 'user',
+    role: 'team-member',
+    organizationId: 'ORG002',
+    isActive: true,
+    isApproved: true,
     avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop&crop=face'
   },
   {
     name: 'David Brown',
     email: 'david.brown@example.com',
     password: 'password123',
-    role: 'user',
+    role: 'department-head',
+    organizationId: 'ORG002',
+    isActive: true,
+    isApproved: true,
     avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop&crop=face'
   }
 ];
@@ -134,9 +176,43 @@ const clearDatabase = async () => {
     await User.deleteMany({});
     await Project.deleteMany({});
     await Task.deleteMany({});
+    await Organization.deleteMany({});
     console.log('🗑️ Database cleared');
   } catch (error) {
     console.error('❌ Error clearing database:', error);
+  }
+};
+
+// Seed organizations
+const seedOrganizations = async (users) => {
+  try {
+    const admin1 = users.find(u => u.email === 'yokarajanr.23it@kongu.edu');
+    const admin2 = users.find(u => u.email === 'admin2@gmail.com');
+    
+    const createdOrganizations = [];
+    
+    // Create organization for admin1
+    const org1 = new Organization({
+      ...sampleOrganizations[0],
+      adminId: admin1._id
+    });
+    await org1.save();
+    createdOrganizations.push(org1);
+    console.log(`🏢 Created organization: ${org1.name} (${org1.code})`);
+    
+    // Create organization for admin2
+    const org2 = new Organization({
+      ...sampleOrganizations[1],
+      adminId: admin2._id
+    });
+    await org2.save();
+    createdOrganizations.push(org2);
+    console.log(`🏢 Created organization: ${org2.name} (${org2.code})`);
+    
+    return createdOrganizations;
+  } catch (error) {
+    console.error('❌ Error seeding organizations:', error);
+    throw error;
   }
 };
 
@@ -166,29 +242,49 @@ const seedUsers = async () => {
 // Seed projects
 const seedProjects = async (users) => {
   try {
-    const adminUser = users.find(u => u.role === 'admin');
-    const regularUsers = users.filter(u => u.role === 'user');
+    // Get users by organization
+    const org1Users = users.filter(u => u.organizationId === 'ORG001' && u.role !== 'admin');
+    const org2Users = users.filter(u => u.organizationId === 'ORG002' && u.role !== 'admin');
+    const org1DeptHead = users.find(u => u.organizationId === 'ORG001' && (u.role === 'department-head' || u.role === 'project-lead'));
+    const org2DeptHead = users.find(u => u.organizationId === 'ORG002' && u.role === 'department-head');
     
     const createdProjects = [];
     
-    for (let i = 0; i < sampleProjects.length; i++) {
+    // Create 2 projects for ORG001
+    for (let i = 0; i < 2; i++) {
       const projectData = sampleProjects[i];
       const project = new Project({
         ...projectData,
-        owner: adminUser._id,
-        members: [
-          { user: adminUser._id, role: 'manager' },
-          ...regularUsers.slice(0, 2).map(user => ({
-            user: user._id,
-            role: 'developer'
-          }))
-        ]
+        owner: org1DeptHead?._id || org1Users[0]?._id,
+        createdBy: org1DeptHead?._id || org1Users[0]?._id,
+        organizationId: 'ORG001', // Assign to ORG001
+        members: org1Users.slice(0, 2).map(user => ({
+          user: user._id,
+          role: 'developer'
+        }))
       });
       
       const savedProject = await project.save();
       createdProjects.push(savedProject);
-      console.log(`📁 Created project: ${savedProject.name} (${savedProject.key})`);
+      console.log(`📁 Created project for ORG001: ${savedProject.name} (${savedProject.key})`);
     }
+    
+    // Create 1 project for ORG002
+    const projectData = sampleProjects[2];
+    const project = new Project({
+      ...projectData,
+      owner: org2DeptHead?._id || org2Users[0]?._id,
+      createdBy: org2DeptHead?._id || org2Users[0]?._id,
+      organizationId: 'ORG002', // Assign to ORG002
+      members: org2Users.slice(0, 2).map(user => ({
+        user: user._id,
+        role: 'developer'
+      }))
+    });
+    
+    const savedProject = await project.save();
+    createdProjects.push(savedProject);
+    console.log(`📁 Created project for ORG002: ${savedProject.name} (${savedProject.key})`);
     
     return createdProjects;
   } catch (error) {
@@ -200,27 +296,31 @@ const seedProjects = async (users) => {
 // Seed tasks
 const seedTasks = async (users, projects) => {
   try {
-    const adminUser = users.find(u => u.role === 'admin');
-    const regularUsers = users.filter(u => u.role === 'user');
-    
     const createdTasks = [];
     
     for (let i = 0; i < sampleTasks.length; i++) {
       const taskData = sampleTasks[i];
       const project = projects[i % projects.length]; // Distribute tasks across projects
-      const assignee = i % 2 === 0 ? regularUsers[0] : regularUsers[1]; // Alternate assignees
+      
+      // Get users from the same organization as the project
+      const projectUsers = users.filter(u => 
+        u.organizationId === project.organizationId && u.role !== 'admin'
+      );
+      const projectLead = projectUsers.find(u => u.role === 'project-lead' || u.role === 'department-head');
+      const assignee = projectUsers[i % projectUsers.length]; // Alternate assignees from same org
       
       const task = new Task({
         ...taskData,
         project: project._id,
-        assignee: assignee._id,
-        reporter: adminUser._id,
+        organizationId: project.organizationId, // Inherit from project
+        assignee: assignee?._id,
+        reporter: projectLead?._id || projectUsers[0]?._id,
         dueDate: new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000) // Due in i+1 days
       });
       
       const savedTask = await task.save();
       createdTasks.push(savedTask);
-      console.log(`✅ Created task: ${savedTask.title}`);
+      console.log(`✅ Created task for ${project.organizationId}: ${savedTask.title}`);
     }
     
     return createdTasks;
@@ -245,6 +345,9 @@ const seedDatabase = async () => {
     console.log('\n👥 Seeding users...');
     const users = await seedUsers();
     
+    console.log('\n🏢 Seeding organizations...');
+    const organizations = await seedOrganizations(users);
+    
     console.log('\n📁 Seeding projects...');
     const projects = await seedProjects(users);
     
@@ -252,14 +355,18 @@ const seedDatabase = async () => {
     const tasks = await seedTasks(users, projects);
     
     console.log('\n🎉 Database seeding completed successfully!');
-    console.log(`📊 Created ${users.length} users, ${projects.length} projects, and ${tasks.length} tasks`);
+    console.log(`📊 Created ${users.length} users, ${organizations.length} organizations, ${projects.length} projects, and ${tasks.length} tasks`);
     
     // Display admin credentials
-    const adminUser = users.find(u => u.role === 'admin');
-    console.log('\n🔑 Admin Login Credentials:');
-    console.log(`   Email: ${adminUser.email}`);
+    console.log('\n🔑 Admin 1 Login Credentials:');
+    console.log(`   Email: yokarajanr.23it@kongu.edu`);
     console.log(`   Password: password123`);
-    console.log(`   Role: ${adminUser.role}`);
+    console.log(`   Organization: ${organizations[0].name} (${organizations[0].code})`);
+    
+    console.log('\n🔑 Admin 2 Login Credentials:');
+    console.log(`   Email: admin2@gmail.com`);
+    console.log(`   Password: password123`);
+    console.log(`   Organization: ${organizations[1].name} (${organizations[1].code})`);
     
     process.exit(0);
   } catch (error) {

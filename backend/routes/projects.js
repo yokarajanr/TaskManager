@@ -1,59 +1,25 @@
 import express from 'express';
-import jwt from 'jsonwebtoken';
 import Project from '../models/Project.js';
 import User from '../models/User.js';
+import { requireAuth, getUserProjects, requireRole, canModifyProject } from '../middleware/permissions.js';
 
 const router = express.Router();
-
-// Middleware to verify authentication
-const requireAuth = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access denied. No token provided.'
-      });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-    const user = await User.findById(decoded.userId);
-    
-    if (!user || !user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found or inactive'
-      });
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
-  }
-};
 
 // Apply auth middleware to all routes
 router.use(requireAuth);
 
 // @route   GET /api/projects
-// @desc    Get all projects for current user
+// @desc    Get all projects for current user (role-based)
 // @access  Private
 router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 20, search = '', status = '' } = req.query;
     
-    // Build query - user must be owner or member
-    let query = {
-      $or: [
-        { owner: req.user._id },
-        { 'members.user': req.user._id }
-      ]
-    };
+    // Build query based on user role
+    let query = await getUserProjects(req.user._id, req.user.role);
+    
+    // CRITICAL: Filter by user's organization
+    query.organizationId = req.user.organizationId;
 
     if (search) {
       query.$and = [{
@@ -102,10 +68,18 @@ router.get('/', async (req, res) => {
 });
 
 // @route   POST /api/projects
-// @desc    Create a new project
-// @access  Private
-router.post('/', async (req, res) => {
+// @desc    Create a new project (Department Head only)
+// @access  Private (Department Head)
+router.post('/', requireAuth, async (req, res) => {
   try {
+    // Only Department Heads can create projects
+    if (req.user.role !== 'department-head') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Department Heads can create projects.'
+      });
+    }
+
     const { name, key, description, visibility = 'team', tags = [] } = req.body;
 
     // Check if project key already exists
@@ -123,6 +97,8 @@ router.post('/', async (req, res) => {
       key: key.toUpperCase(),
       description,
       owner: req.user._id,
+      createdBy: req.user._id,
+      organizationId: req.user.organizationId, // Assign to user's organization
       visibility,
       tags,
       members: [{ user: req.user._id, role: 'manager' }]
@@ -154,19 +130,25 @@ router.post('/', async (req, res) => {
 // @access  Private
 router.get('/:id', async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id)
-      .populate('owner', 'name email avatar')
-      .populate('members.user', 'name email avatar');
+    const project = await Project.findOne({ 
+      _id: req.params.id, 
+      organizationId: req.user.organizationId // Only from same organization
+    })
+      .populate('owner', 'name email avatar role')
+      .populate('members.user', 'name email avatar role');
 
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: 'Project not found'
+        message: 'Project not found or you do not have access to this organization.'
       });
     }
 
+    // Admin and Department Head can access all projects in their organization
+    const hasFullAccess = req.user.role === 'admin' || req.user.role === 'department-head';
+    
     // Check if user has access to this project
-    if (!project.isOwner(req.user._id) && !project.isMember(req.user._id)) {
+    if (!hasFullAccess && !project.isOwner(req.user._id) && !project.isMember(req.user._id)) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You are not a member of this project.'

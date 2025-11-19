@@ -76,8 +76,24 @@ export const Login: React.FC = () => {
             />
           </div>
           {error && (
-            <div className="text-sm text-[#D7263D] bg-[#D7263D]/20 border-2 border-[#D7263D]/30 rounded-2xl p-3 text-center">
-              {error}
+            <div className={`text-sm rounded-2xl p-3 ${
+              error.includes('pending') || error.includes('approval') 
+                ? 'text-[#F7B801] bg-[#F7B801]/20 border-2 border-[#F7B801]/30' 
+                : 'text-[#D7263D] bg-[#D7263D]/20 border-2 border-[#D7263D]/30'
+            }`}>
+              {error.includes('pending') || error.includes('approval') ? (
+                <div className="flex items-start space-x-2">
+                  <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-left">
+                    <p className="font-semibold mb-1">Account Pending</p>
+                    <p className="text-sm">{error}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-center">{error}</p>
+              )}
             </div>
           )}
           <Button type="submit" className="w-full btn-primary" disabled={loading}>

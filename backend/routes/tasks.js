@@ -1,78 +1,44 @@
 import express from 'express';
-import jwt from 'jsonwebtoken';
 import Task from '../models/Task.js';
 import Project from '../models/Project.js';
 import User from '../models/User.js';
+import { requireAuth, getUserTasksQuery, checkProjectAccess } from '../middleware/permissions.js';
 
 const router = express.Router();
-
-// Middleware to verify authentication
-const requireAuth = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access denied. No token provided.'
-      });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-    const user = await User.findById(decoded.userId);
-    
-    if (!user || !user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found or inactive'
-      });
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
-  }
-};
 
 // Apply auth middleware to all routes
 router.use(requireAuth);
 
 // @route   GET /api/tasks
-// @desc    Get all tasks for current user
+// @desc    Get all tasks for current user (role-based)
 // @access  Private
 router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 20, project, status, priority, type, assignee } = req.query;
     
-    // Build query
-    let query = {};
+    // Build base query based on user role
+    let query = await getUserTasksQuery(req.user._id, req.user.role);
+    
+    // CRITICAL: Filter by user's organization
+    query.organizationId = req.user.organizationId;
 
     // Filter by project if specified
     if (project) {
       query.project = project;
       
-      // Check if user has access to this project
-      const projectDoc = await Project.findById(project);
-      if (!projectDoc || (!projectDoc.isOwner(req.user._id) && !projectDoc.isMember(req.user._id))) {
+      // Check if user has access to this project (must be same organization)
+      const projectDoc = await Project.findOne({ 
+        _id: project, 
+        organizationId: req.user.organizationId 
+      });
+      const hasFullAccess = req.user.role === 'admin' || req.user.role === 'department-head';
+      
+      if (!projectDoc || (!hasFullAccess && !projectDoc.isOwner(req.user._id) && !projectDoc.isMember(req.user._id))) {
         return res.status(403).json({
           success: false,
           message: 'Access denied. You do not have access to this project.'
         });
       }
-    } else {
-      // If no project specified, get tasks from projects user has access to
-      const userProjects = await Project.find({
-        $or: [
-          { owner: req.user._id },
-          { 'members.user': req.user._id }
-        ]
-      }).select('_id');
-      
-      query.project = { $in: userProjects.map(p => p._id) };
     }
 
     // Add other filters
@@ -115,22 +81,33 @@ router.get('/', async (req, res) => {
 });
 
 // @route   POST /api/tasks
-// @desc    Create a new task
-// @access  Private
+// @desc    Create a new task (Project Lead only)
+// @access  Private (Project Lead)
 router.post('/', async (req, res) => {
   try {
     const { title, description, project, assignee, dueDate, estimatedHours, priority = 'medium', type = 'task', labels = [] } = req.body;
 
-    // Check if project exists and user has access
-    const projectDoc = await Project.findById(project);
-    if (!projectDoc) {
-      return res.status(404).json({
+    // Only Project Leads can create tasks
+    if (req.user.role !== 'project-lead' && req.user.role !== 'department-head') {
+      return res.status(403).json({
         success: false,
-        message: 'Project not found'
+        message: 'Only Project Leads can create and assign tasks.'
       });
     }
 
-    if (!projectDoc.isOwner(req.user._id) && !projectDoc.isMember(req.user._id)) {
+    // Check if project exists and user has access (must be same organization)
+    const projectDoc = await Project.findOne({ 
+      _id: project, 
+      organizationId: req.user.organizationId 
+    });
+    if (!projectDoc) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found or not in your organization'
+      });
+    }
+
+    if (!projectDoc.isOwner(req.user._id) && !projectDoc.isMember(req.user._id) && req.user.role !== 'department-head') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You do not have access to this project.'
@@ -160,6 +137,7 @@ router.post('/', async (req, res) => {
       title,
       description,
       project,
+      organizationId: req.user.organizationId, // Assign to user's organization
       assignee,
       reporter: req.user._id,
       dueDate: dueDate ? new Date(dueDate) : null,
@@ -198,7 +176,10 @@ router.post('/', async (req, res) => {
 // @access  Private
 router.get('/:id', async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id)
+    const task = await Task.findOne({ 
+      _id: req.params.id, 
+      organizationId: req.user.organizationId // Only from same organization
+    })
       .populate('project', 'name key')
       .populate('assignee', 'name email avatar')
       .populate('reporter', 'name email avatar');
@@ -206,12 +187,15 @@ router.get('/:id', async (req, res) => {
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found'
+        message: 'Task not found or not in your organization'
       });
     }
 
     // Check if user has access to the project
-    const project = await Project.findById(task.project);
+    const project = await Project.findOne({ 
+      _id: task.project, 
+      organizationId: req.user.organizationId 
+    });
     if (!project || (!project.isOwner(req.user._id) && !project.isMember(req.user._id))) {
       return res.status(403).json({
         success: false,

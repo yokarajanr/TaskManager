@@ -5,17 +5,38 @@ export interface User {
   avatar?: string;
   password?: string;
   role?: 'team-member' | 'project-lead' | 'department-head' | 'admin';
+  organizationId?: string;
+  isActive?: boolean;
+  isApproved?: boolean;
+  approvedBy?: string;
+  approvedAt?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface Organization {
+  _id: string;
+  name: string;
+  code: string;
+  description?: string;
+  adminId: string;
+  isActive: boolean;
+  memberCount: number;
+  createdAt?: Date;
   updatedAt?: Date;
 }
 
 export interface Project {
   id: string;
+  _id?: string;
   name: string;
   key: string;
   description: string;
   createdAt: Date;
   updatedAt: Date;
   ownerId: string;
+  createdBy?: string; // Department Head who created the project
+  projectLead?: string; // Assigned Project Lead
   members: User[];
 }
 

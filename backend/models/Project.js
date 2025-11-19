@@ -27,6 +27,21 @@ const projectSchema = new mongoose.Schema({
     ref: 'User',
     required: [true, 'Project owner is required']
   },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true // Department Head who created the project
+  },
+  projectLead: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false // Assigned by Department Head
+  },
+  organizationId: {
+    type: String,
+    required: [true, 'Organization ID is required'],
+    index: true // For multi-tenant data isolation
+  },
   members: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,

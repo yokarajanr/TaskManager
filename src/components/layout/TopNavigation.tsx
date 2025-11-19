@@ -1,19 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { Button } from '../ui/Button';
-import { Bell, Search, Settings, User, LogOut, Menu, X, Plus } from 'lucide-react';
+import { Bell, Search, Settings, User, LogOut, Menu, X, Plus, FolderOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const TopNavigation: React.FC = () => {
-  const { currentUser, logout, tasks, projects, users } = useApp();
+  const { currentUser, logout, tasks, projects, users, currentProject, setCurrentProject } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showProjectSelector, setShowProjectSelector] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const projectSelectorRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   if (!currentUser) return null;
+
+  // Check if user role works with projects (not admin)
+  const canWorkWithProjects = currentUser.role && ['team-member', 'project-lead', 'department-head'].includes(currentUser.role);
 
   // Handle search
   const handleSearch = (query: string) => {
@@ -93,11 +98,14 @@ export const TopNavigation: React.FC = () => {
     }
   };
 
-  // Close search results when clicking outside
+  // Close search results and project selector when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSearchResults(false);
+      }
+      if (projectSelectorRef.current && !projectSelectorRef.current.contains(event.target as Node)) {
+        setShowProjectSelector(false);
       }
     };
 
@@ -108,32 +116,97 @@ export const TopNavigation: React.FC = () => {
   return (
     <>
       {/* Desktop Navigation */}
-      <nav className="hidden lg:block glass border-b-2 border-[#9B5DE5]/20">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+      <nav className="hidden lg:block glass border-b-2 border-[#9B5DE5]/20 sticky top-0 z-40">
+        <div className="px-6 py-3">
+          <div className="flex items-center justify-between gap-6">
             {/* Logo and Brand */}
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#9B5DE5] to-[#7C3AED] rounded-2xl flex items-center justify-center glow">
-                <Plus className="w-7 h-7 text-white" />
+            <div className="flex items-center space-x-3 flex-shrink-0">
+              <div className="w-10 h-10 bg-gradient-to-br from-[#9B5DE5] to-[#7C3AED] rounded-xl flex items-center justify-center shadow-lg">
+                <Plus className="w-6 h-6 text-white" />
               </div>
               <div>
-                                 <h1 className="text-2xl font-bold text-[#1E1E24] !important">
-                   TaskMaster Pro
-                 </h1>
-                 <p className="text-sm text-[#7C6F64] !important">Enterprise Task Management</p>
+                <h1 className="text-xl font-bold text-[#1E1E24] !important">
+                  TaskMaster Pro
+                </h1>
+                <p className="text-xs text-[#7C6F64] !important">Enterprise Task Management</p>
               </div>
             </div>
 
+            {/* Project Selector - Only for roles that work with projects */}
+            {canWorkWithProjects && (
+              <div className="relative flex-shrink-0" ref={projectSelectorRef}>
+                <button
+                  onClick={() => setShowProjectSelector(!showProjectSelector)}
+                  className="flex items-center space-x-2 px-4 py-2.5 bg-[#E0FBFC] border-2 border-[#9B5DE5]/30 rounded-xl text-[#1E1E24] hover:border-[#9B5DE5] focus:outline-none focus:border-[#9B5DE5] focus:ring-2 focus:ring-[#9B5DE5]/20 transition-all duration-300"
+                >
+                  <FolderOpen className="w-4 h-4 text-[#9B5DE5]" />
+                  <div className="text-left">
+                    <p className="text-xs text-[#7C6F64]">Current Project</p>
+                    <p className="text-sm font-semibold text-[#1E1E24] truncate max-w-[180px]">
+                      {currentProject ? currentProject.name : 'Select Project'}
+                    </p>
+                  </div>
+                  <svg className={`w-3 h-3 text-[#7C6F64] transition-transform ${showProjectSelector ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+              {/* Project Dropdown */}
+              {showProjectSelector && (
+                <div className="absolute top-full left-0 right-0 mt-3 bg-[#E0FBFC] rounded-2xl border-2 border-[#9B5DE5]/20 shadow-2xl z-50 max-h-96 overflow-y-auto min-w-[320px]">
+                  <div className="p-4">
+                    {projects.length > 0 ? (
+                      projects.map((project) => (
+                        <div
+                          key={project.id || project._id}
+                          onClick={() => {
+                            setCurrentProject(project);
+                            setShowProjectSelector(false);
+                          }}
+                          className={`flex items-center space-x-4 p-4 rounded-xl cursor-pointer transition-all duration-200 hover-lift ${
+                            (currentProject?.id === project.id || currentProject?._id === project._id)
+                              ? 'bg-[#9B5DE5]/20 border-2 border-[#9B5DE5]'
+                              : 'hover:bg-[#9B5DE5]/10'
+                          }`}
+                        >
+                          <div className="w-10 h-10 bg-gradient-to-br from-[#9B5DE5] to-[#7C3AED] rounded-xl flex items-center justify-center">
+                            <FolderOpen className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-[#1E1E24] truncate">{project.name}</p>
+                            <p className="text-xs text-[#7C6F64] truncate">{project.description || 'No description'}</p>
+                            {project.key && (
+                              <span className="text-xs text-[#7C6F64] mt-1 font-mono">{project.key}</span>
+                            )}
+                          </div>
+                          {(currentProject?.id === project.id || currentProject?._id === project._id) && (
+                            <svg className="w-5 h-5 text-[#9B5DE5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-6 text-center">
+                        <p className="text-[#7C6F64]">No projects available</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              </div>
+            )}
+
             {/* Search Bar */}
-            <div className="flex-1 max-w-md mx-8 relative" ref={searchRef}>
+            <div className="flex-1 max-w-lg relative" ref={searchRef}>
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#7C6F64]" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#7C6F64]" />
                 <input
                   type="text"
-                  placeholder="Search tasks, projects, or people..."
+                  placeholder="Search tasks, projects..."
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-[#E0FBFC] border-2 border-[#9B5DE5]/30 rounded-2xl text-[#1E1E24] placeholder-[#7C6F64] focus:outline-none focus:border-[#9B5DE5] focus:ring-4 focus:ring-[#9B5DE5]/20 transition-all duration-300"
+                  className="w-full pl-10 pr-10 py-2.5 bg-[#E0FBFC] border-2 border-[#9B5DE5]/30 rounded-xl text-[#1E1E24] placeholder-[#7C6F64] text-sm focus:outline-none focus:border-[#9B5DE5] focus:ring-2 focus:ring-[#9B5DE5]/20 transition-all duration-300"
                 />
                 {searchQuery && (
                   <button
@@ -142,9 +215,9 @@ export const TopNavigation: React.FC = () => {
                       setSearchResults([]);
                       setShowSearchResults(false);
                     }}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-[#7C6F64] hover:text-[#1E1E24]"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#7C6F64] hover:text-[#1E1E24]"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 )}
               </div>
@@ -212,38 +285,40 @@ export const TopNavigation: React.FC = () => {
             </div>
 
             {/* Right side actions */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 flex-shrink-0">
               {/* Notifications */}
-              <button className="relative p-3 text-[#1E1E24] hover:text-[#9B5DE5] hover:bg-[#9B5DE5]/10 rounded-2xl transition-all duration-300 hover-lift">
-                <Bell className="w-6 h-6" />
-                <span className="absolute top-2 right-2 w-3 h-3 bg-[#D7263D] rounded-full"></span>
+              <button className="relative p-2 text-[#1E1E24] hover:text-[#9B5DE5] hover:bg-[#9B5DE5]/10 rounded-xl transition-all duration-300">
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D7263D] rounded-full ring-2 ring-white"></span>
               </button>
 
               {/* Settings */}
-              <button className="p-3 text-[#1E1E24] hover:text-[#9B5DE5] hover:bg-[#9B5DE5]/10 rounded-2xl transition-all duration-300 hover-lift">
-                <Settings className="w-6 h-6" />
+              <button 
+                onClick={() => navigate('/settings')}
+                className="p-2 text-[#1E1E24] hover:text-[#9B5DE5] hover:bg-[#9B5DE5]/10 rounded-xl transition-all duration-300"
+              >
+                <Settings className="w-5 h-5" />
               </button>
 
               {/* User Menu */}
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-3 p-3 bg-[#E0FBFC] rounded-2xl border-2 border-[#9B5DE5]/20 hover:border-[#9B5DE5]/40 transition-all duration-300 cursor-pointer hover-lift">
-                  <div className="w-10 h-10 bg-gradient-to-br from-[#9B5DE5] to-[#7C3AED] rounded-xl flex items-center justify-center">
-                    <User className="w-5 h-5 text-white" />
+              <div className="flex items-center space-x-2 ml-2">
+                <div className="flex items-center space-x-2 px-3 py-2 bg-[#E0FBFC] rounded-xl border-2 border-[#9B5DE5]/20 hover:border-[#9B5DE5]/40 transition-all duration-300 cursor-pointer">
+                  <div className="w-8 h-8 bg-gradient-to-br from-[#9B5DE5] to-[#7C3AED] rounded-lg flex items-center justify-center text-white text-sm font-semibold">
+                    {currentUser.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
-                  <div className="hidden md:block text-left">
+                  <div className="hidden xl:block text-left">
                     <p className="text-sm font-semibold text-[#1E1E24] !important">{currentUser.name}</p>
-                    <p className="text-xs text-[#7C6F64] !important capitalize">{currentUser.role || 'user'}</p>
+                    <p className="text-xs text-[#7C6F64] !important capitalize">{currentUser.role || 'Admin'}</p>
                   </div>
                 </div>
 
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
                   onClick={logout}
-                  className="p-3 text-[#1E1E24] hover:text-[#D7263D] hover:bg-[#D7263D]/10 rounded-2xl transition-all duration-300"
+                  className="p-2 text-[#1E1E24] hover:text-[#D7263D] hover:bg-[#D7263D]/10 rounded-xl transition-all duration-300"
+                  title="Logout"
                 >
                   <LogOut className="w-5 h-5" />
-                </Button>
+                </button>
               </div>
             </div>
           </div>

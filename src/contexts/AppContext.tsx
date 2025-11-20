@@ -162,6 +162,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [isAuthenticated]); // Remove currentProject dependency to prevent excessive calls
 
+  // Refetch tasks when currentUser changes (for smooth task visibility updates)
+  useEffect(() => {
+    if (currentUser && currentProject && isAuthenticated) {
+      console.log('👤 User changed, refetching tasks for:', currentUser.name);
+      fetchTasks(currentProject.id);
+    }
+  }, [currentUser?.id]); // Trigger when user ID changes
+
   // Auth methods
   const login = async (email: string, password: string): Promise<ApiResponse> => {
     try {

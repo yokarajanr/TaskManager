@@ -87,11 +87,11 @@ router.post('/', async (req, res) => {
   try {
     const { title, description, project, assignee, dueDate, estimatedHours, priority = 'medium', type = 'task', labels = [] } = req.body;
 
-    // Only Project Leads can create tasks
-    if (req.user.role !== 'project-lead' && req.user.role !== 'department-head') {
+    // Only Project Leads, Department Heads, and Admins can create tasks
+    if (req.user.role !== 'project-lead' && req.user.role !== 'department-head' && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Only Project Leads can create and assign tasks.'
+        message: 'Only Project Leads, Department Heads, and Admins can create and assign tasks.'
       });
     }
 

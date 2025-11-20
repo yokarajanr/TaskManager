@@ -93,7 +93,10 @@ export const TopNavigation: React.FC = () => {
         navigate(`/dashboard`);
         break;
       case 'user':
-        navigate(`/team`);
+        // Only navigate to team if user is not a team-member
+        if (currentUser?.role !== 'team-member') {
+          navigate(`/team`);
+        }
         break;
     }
   };

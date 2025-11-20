@@ -2,10 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { useApp } from '../../contexts/AppContext';
-import axios from 'axios';
-import { getAuthToken } from '../../utils/auth';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { authAPI } from '../../services/api';
 
 interface AddMemberModalProps {
   isOpen: boolean;
@@ -30,17 +27,10 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose 
   const fetchAvailableUsers = async () => {
     try {
       setLoading(true);
-      const token = getAuthToken();
-      const response = await axios.get(`${API_URL}/users`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await authAPI.get('/users');
       
       if (response.data.success) {
-        // Backend returns { success: true, data: { users: [...] } }
-        const allUsers = response.data.data?.users || [];
+        const allUsers = response.data.data || [];
         
         // Filter out users already in the project and only show team-member and project-lead
         const currentMemberIds = currentProject?.members?.map((m: any) => {
@@ -136,15 +126,9 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose 
 
       for (const user of usersToAdd) {
         try {
-          const token = getAuthToken();
-          const response = await axios.post(`${API_URL}/projects/${currentProject.id}/members`, {
+          const response = await authAPI.post(`/projects/${currentProject.id}/members`, {
             userId: user._id || user.id,
             role: 'member'
-          }, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
           });
 
           if (response.data.success) {

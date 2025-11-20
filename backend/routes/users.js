@@ -111,15 +111,15 @@ router.put('/password', async (req, res) => {
 });
 
 // @route   GET /api/users
-// @desc    Get all users from same organization (for department heads and admins)
-// @access  Private (Department Heads and Admins only)
+// @desc    Get all users from same organization (for department heads, project leads and admins)
+// @access  Private (Department Heads, Project Leads and Admins only)
 router.get('/', async (req, res) => {
   try {
-    // Only admins and department heads can view all users
-    if (req.user.role !== 'admin' && req.user.role !== 'department-head') {
+    // Only admins, department heads, and project leads can view all users
+    if (req.user.role !== 'admin' && req.user.role !== 'department-head' && req.user.role !== 'project-lead') {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Only admins and department heads can view users.'
+        message: 'Access denied. Only admins, department heads, and project leads can view users.'
       });
     }
 
@@ -190,7 +190,7 @@ router.get('/my-teams', async (req, res) => {
     // Format the response with detailed team information
     const teams = projects.map(project => {
       // Get user's role in this project
-      const userMember = project.members.find(m => m.user._id.toString() === req.user._id.toString());
+      const userMember = project.members.find(m => m.user && m.user._id && m.user._id.toString() === req.user._id.toString());
       
       return {
         projectId: project._id,
@@ -200,22 +200,24 @@ router.get('/my-teams', async (req, res) => {
         projectStatus: project.status,
         userRoleInProject: userMember?.role || 'member',
         joinedAt: userMember?.joinedAt,
-        owner: {
+        owner: project.owner ? {
           id: project.owner._id,
           name: project.owner.name,
           email: project.owner.email,
-          avatar: project.owner.avatar,
+          avatar: project.owner.avatar || '',
           role: project.owner.role
-        },
-        teamMembers: project.members.map(m => ({
-          id: m.user._id,
-          name: m.user.name,
-          email: m.user.email,
-          avatar: m.user.avatar,
-          role: m.user.role,
-          projectRole: m.role,
-          joinedAt: m.joinedAt
-        })),
+        } : null,
+        teamMembers: project.members
+          .filter(m => m.user && m.user._id)
+          .map(m => ({
+            id: m.user._id,
+            name: m.user.name,
+            email: m.user.email,
+            avatar: m.user.avatar || '',
+            role: m.user.role,
+            projectRole: m.role,
+            joinedAt: m.joinedAt
+          })),
         memberCount: project.members.length,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt
@@ -233,9 +235,11 @@ router.get('/my-teams', async (req, res) => {
 
   } catch (error) {
     console.error('My teams fetch error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      message: 'Error fetching teams'
+      message: 'Error fetching teams',
+      error: error.message
     });
   }
 });

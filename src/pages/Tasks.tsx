@@ -5,24 +5,53 @@ import { TaskDetailModal } from '../components/task/TaskDetailModal';
 import { CreateTaskModal } from '../components/task/CreateTaskModal';
 import { Button } from '../components/ui/Button';
 import { Task } from '../types';
-import { Plus, Filter, Search, List, Grid } from 'lucide-react';
+import { Plus, Search, List, Grid, CheckSquare, Clock, AlertCircle } from 'lucide-react';
 
 export const Tasks: React.FC = () => {
-  const { tasks } = useApp();
+  const { tasks, currentUser, currentProject } = useApp();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState<string>('');
 
-  const filteredTasks = tasks.filter(task => {
+  // Role-based task filtering
+  const getVisibleTasks = () => {
+    if (!currentUser) return [];
+    
+    // Admins, Department Heads, and Project Leads see ALL tasks in their projects (for management)
+    if (currentUser.role === 'admin' || currentUser.role === 'department-head' || currentUser.role === 'project-lead') {
+      return tasks;
+    }
+    
+    // Team members ONLY see tasks assigned to them
+    if (currentUser.role === 'team-member') {
+      return tasks.filter(task => {
+        const assigneeId = (task.assignee as any)?._id || (task.assignee as any)?.id || task.assignee || task.assigneeId;
+        return assigneeId === currentUser.id || assigneeId === (currentUser as any)._id;
+      });
+    }
+    
+    // Default: return all tasks
+    return tasks;
+  };
+
+  const filteredTasks = getVisibleTasks().filter(task => {
     const matchesFilter = filter === 'all' || task.status === filter;
     const matchesSearch = search === '' || 
-      task.title.toLowerCase().includes(search.toLowerCase()) ||
-      task.description.toLowerCase().includes(search.toLowerCase());
+      task.title?.toLowerCase().includes(search.toLowerCase()) ||
+      task.description?.toLowerCase().includes(search.toLowerCase());
     
     return matchesFilter && matchesSearch;
   });
+
+  // Calculate task statistics
+  const taskStats = {
+    total: filteredTasks.length,
+    todo: filteredTasks.filter(t => t.status === 'todo').length,
+    inProgress: filteredTasks.filter(t => t.status === 'in-progress').length,
+    done: filteredTasks.filter(t => t.status === 'done').length
+  };
 
   const filterOptions = [
     { value: 'all', label: 'All Tasks' },
@@ -33,15 +62,63 @@ export const Tasks: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-4xl font-bold text-[#1E1E24] !important mb-4">Tasks</h1>
-        <p className="text-[#7C6F64] !important text-lg">Manage and track all your tasks</p>
+        <h1 className="text-4xl font-bold text-[#1E1E24] !important mb-4">
+          {currentUser?.role === 'team-member' ? 'My Tasks' : 'Tasks'}
+        </h1>
+        <p className="text-[#7C6F64] !important text-lg">
+          {currentUser?.role === 'team-member' 
+            ? 'Track and manage your assigned tasks'
+            : currentProject 
+              ? `Managing tasks for ${currentProject.name}`
+              : 'Manage and track all tasks'
+          }
+        </p>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="card rounded-2xl p-5 border-2 border-[#9B5DE5]/20">
+          <div className="flex items-center justify-between mb-3">
+            <CheckSquare className="w-8 h-8 text-[#9B5DE5]" />
+            <span className="text-2xl font-bold text-[#1E1E24] !important">{taskStats.total}</span>
+          </div>
+          <p className="text-sm font-bold text-[#1E1E24] !important">Total Tasks</p>
+          <p className="text-xs text-[#7C6F64] !important">All tasks</p>
+        </div>
+
+        <div className="card rounded-2xl p-5 border-2 border-[#00F5D4]/20">
+          <div className="flex items-center justify-between mb-3">
+            <Clock className="w-8 h-8 text-[#00F5D4]" />
+            <span className="text-2xl font-bold text-[#1E1E24] !important">{taskStats.inProgress}</span>
+          </div>
+          <p className="text-sm font-bold text-[#1E1E24] !important">In Progress</p>
+          <p className="text-xs text-[#7C6F64] !important">Active tasks</p>
+        </div>
+
+        <div className="card rounded-2xl p-5 border-2 border-[#F7B801]/20">
+          <div className="flex items-center justify-between mb-3">
+            <AlertCircle className="w-8 h-8 text-[#F7B801]" />
+            <span className="text-2xl font-bold text-[#1E1E24] !important">{taskStats.todo}</span>
+          </div>
+          <p className="text-sm font-bold text-[#1E1E24] !important">To Do</p>
+          <p className="text-xs text-[#7C6F64] !important">Pending tasks</p>
+        </div>
+
+        <div className="card rounded-2xl p-5 border-2 border-[#00D084]/20">
+          <div className="flex items-center justify-between mb-3">
+            <CheckSquare className="w-8 h-8 text-[#00D084]" />
+            <span className="text-2xl font-bold text-[#1E1E24] !important">{taskStats.done}</span>
+          </div>
+          <p className="text-sm font-bold text-[#1E1E24] !important">Completed</p>
+          <p className="text-xs text-[#7C6F64] !important">Finished tasks</p>
+        </div>
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center space-x-4">
           {/* Search */}
           <div className="relative">
@@ -69,33 +146,43 @@ export const Tasks: React.FC = () => {
           </select>
         </div>
 
-        {/* View Toggle */}
-        <div className="flex items-center border-2 border-[#9B5DE5]/30 rounded-2xl bg-[#E0FBFC]">
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`p-2 rounded-l-2xl transition-all duration-300 ${
-              viewMode === 'grid'
-                ? 'bg-[#9B5DE5] text-white'
-                : 'text-[#7C6F64] hover:text-[#1E1E24] hover:bg-[#9B5DE5]/10'
-            }`}
-          >
-            <Grid className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            className={`p-2 rounded-r-2xl transition-all duration-300 ${
-              viewMode === 'list'
-                ? 'bg-[#9B5DE5] text-white'
-                : 'text-[#7C6F64] hover:text-[#1E1E24] hover:bg-[#9B5DE5]/10'
-            }`}
-          >
-            <List className="w-4 h-4" />
-          </button>
+        <div className="flex items-center space-x-4">
+          {/* Create Task Button - Only for Project Leads and Department Heads */}
+          {(currentUser?.role === 'project-lead' || currentUser?.role === 'department-head') && currentProject && (
+            <Button onClick={() => setIsCreateModalOpen(true)} className="btn-primary">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Task
+            </Button>
+          )}
+
+          {/* View Toggle */}
+          <div className="flex items-center border-2 border-[#9B5DE5]/30 rounded-2xl bg-[#E0FBFC]">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-l-2xl transition-all duration-300 ${
+                viewMode === 'grid'
+                  ? 'bg-[#9B5DE5] text-white'
+                  : 'text-[#7C6F64] hover:text-[#1E1E24] hover:bg-[#9B5DE5]/10'
+              }`}
+            >
+              <Grid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-r-2xl transition-all duration-300 ${
+                viewMode === 'list'
+                  ? 'bg-[#9B5DE5] text-white'
+                  : 'text-[#7C6F64] hover:text-[#1E1E24] hover:bg-[#9B5DE5]/10'
+              }`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Create Task Button */}
-      <div className="flex justify-center">
+      {/* Remove standalone Create Task Button */}
+      {/* <div className="flex justify-center">
         <Button onClick={() => setIsCreateModalOpen(true)} className="btn-primary">
           <Plus className="w-4 h-4 mr-2" />
           Create Task
@@ -112,8 +199,8 @@ export const Tasks: React.FC = () => {
           {filteredTasks.map(task => (
             <TaskCard
               key={task.id}
-              task={task}
-              onClick={() => setSelectedTask(task)}
+              task={task as Task}
+              onClick={() => setSelectedTask(task as Task)}
             />
           ))}
         </div>

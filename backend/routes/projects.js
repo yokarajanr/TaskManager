@@ -37,8 +37,8 @@ router.get('/', async (req, res) => {
 
     // Execute query with pagination
     const projects = await Project.find(query)
-      .populate('owner', 'name email avatar')
-      .populate('members.user', 'name email avatar')
+      .populate('owner', 'name email avatar role')
+      .populate('members.user', 'name email avatar role')
       .sort({ updatedAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
@@ -144,7 +144,7 @@ router.post('/', requireAuth, async (req, res) => {
 
     // Populate owner and members for response
     await project.populate('owner', 'name email avatar');
-    await project.populate('members.user', 'name email avatar');
+    await project.populate('members.user', 'name email avatar role');
 
     res.status(201).json({
       success: true,
@@ -235,7 +235,7 @@ router.put('/:id', async (req, res) => {
       { new: true, runValidators: true }
     )
       .populate('owner', 'name email avatar')
-      .populate('members.user', 'name email avatar');
+      .populate('members.user', 'name email avatar role');
 
     res.json({
       success: true,
@@ -327,7 +327,7 @@ router.post('/:id/members', async (req, res) => {
 
     // Populate for response
     await project.populate('owner', 'name email avatar');
-    await project.populate('members.user', 'name email avatar');
+    await project.populate('members.user', 'name email avatar role');
 
     res.json({
       success: true,
@@ -380,7 +380,7 @@ router.delete('/:id/members/:userId', async (req, res) => {
 
     // Populate for response
     await project.populate('owner', 'name email avatar');
-    await project.populate('members.user', 'name email avatar');
+    await project.populate('members.user', 'name email avatar role');
 
     res.json({
       success: true,

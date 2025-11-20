@@ -43,7 +43,18 @@ export const SidePanel: React.FC = () => {
     { name: 'Settings', href: '/settings', icon: Settings, color: 'from-[#9B5DE5] to-[#7C3AED]' },
   ];
 
-  const navigation = currentUser?.role === 'admin' ? adminNavigation : projectNavigation;
+  // Filter out Team section for team-member role
+  const getFilteredNavigation = () => {
+    if (currentUser?.role === 'admin') {
+      return adminNavigation;
+    }
+    if (currentUser?.role === 'team-member') {
+      return projectNavigation.filter(item => item.name !== 'Team');
+    }
+    return projectNavigation;
+  };
+
+  const navigation = getFilteredNavigation();
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();

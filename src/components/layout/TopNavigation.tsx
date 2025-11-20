@@ -281,6 +281,7 @@ export const TopNavigation: React.FC = () => {
                         <div
                           key={project.id || project._id}
                           onClick={() => {
+                            console.log('🎯 Project selected:', project.name);
                             setCurrentProject(project);
                             setShowProjectSelector(false);
                           }}

@@ -86,14 +86,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Check if user is authenticated and not blocked by circuit breaker
   const isAuthenticated = !!currentUser && !!getAuthToken() && authFailureCount < 5;
 
-  // Fetch tasks immediately when current project changes (no lag)
-  useEffect(() => {
-    if (currentProject && currentProject.id && isAuthenticated) {
-      console.log('🔄 Current project changed, fetching tasks immediately:', currentProject.name);
-      fetchTasks(currentProject.id);
-    }
-  }, [currentProject?.id, isAuthenticated]);
-
   // Validate authentication on app startup
   useEffect(() => {
     const validateAuth = () => {
@@ -567,6 +559,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log('⚠️ User role not authorized to fetch users:', currentUser?.role);
     }
   };
+
+  // Fetch tasks immediately when current project changes (no lag)
+  useEffect(() => {
+    if (currentProject && currentProject.id && isAuthenticated) {
+      console.log('🔄 Current project changed, fetching tasks immediately:', currentProject.name);
+      // Clear old tasks first to avoid showing stale data
+      setTasks([]);
+      // Fetch new tasks for the selected project
+      fetchTasks(currentProject.id);
+    } else if (!currentProject && isAuthenticated) {
+      // If no project selected, clear tasks
+      console.log('📭 No project selected, clearing tasks');
+      setTasks([]);
+    }
+  }, [currentProject?.id, isAuthenticated]);
 
   const value = {
     // State

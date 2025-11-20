@@ -656,25 +656,43 @@ export const Admin: React.FC = () => {
   // Memoized analytics calculations to prevent unnecessary re-renders
   const analytics = React.useMemo(() => {
     console.log('Admin analytics recalculation - Users:', users?.length, 'Projects:', projects?.length, 'Tasks:', tasks?.length, 'Current user role:', currentUser?.role);
-    const visitCount = 1250; // Mock visit count
     const allTasks = tasks; // Use tasks as allTasks
 
     // Calculate analytics
     const totalUsers = users?.length || 0;
+    const activeUsers = users?.filter(u => u.isActive).length || 0;
+    const pendingUsers = users?.filter(u => !u.isApproved).length || 0;
     const adminUsers = users?.filter(u => u.role === 'admin').length || 0;
+    const projectLeads = users?.filter(u => u.role === 'project-lead').length || 0;
+    const departmentHeads = users?.filter(u => u.role === 'department-head').length || 0;
+    const teamMembers = users?.filter(u => u.role === 'team-member').length || 0;
+    
     const totalProjects = projects?.length || 0;
+    const activeProjects = projects?.filter(p => p.members && p.members.length > 0).length || 0;
+    
     const totalTasks = allTasks?.length || 0;
     const completedTasks = allTasks?.filter(t => t.status === 'done').length || 0;
-    const overdueTasks = allTasks?.filter(t => t.dueDate && t.dueDate < new Date() && t.status !== 'done').length || 0;
+    const inProgressTasks = allTasks?.filter(t => t.status === 'in-progress').length || 0;
+    const todoTasks = allTasks?.filter(t => t.status === 'todo').length || 0;
+    const reviewTasks = allTasks?.filter(t => t.status === 'review').length || 0;
+    const overdueTasks = allTasks?.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done').length || 0;
     const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
     return {
-      visitCount,
       totalUsers,
+      activeUsers,
+      pendingUsers,
       adminUsers,
+      projectLeads,
+      departmentHeads,
+      teamMembers,
       totalProjects,
+      activeProjects,
       totalTasks,
       completedTasks,
+      inProgressTasks,
+      todoTasks,
+      reviewTasks,
       overdueTasks,
       completionRate
     };
@@ -950,17 +968,64 @@ export const Admin: React.FC = () => {
               <div className="glass rounded-2xl p-6 hover-lift relative">
                 <div className="absolute top-2 right-2">
                   <div className="flex items-center space-x-1">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                    <span className="text-xs text-blue-400">Mock</span>
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-green-400">Live</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Page Visits</p>
-                    <p className="text-3xl font-bold text-blue-400">{analytics.visitCount}</p>
+                    <p className="text-sm text-gray-400 mb-1">In Progress</p>
+                    <p className="text-3xl font-bold text-blue-400">{analytics.inProgressTasks}</p>
                   </div>
-                  <Clock className="w-10 h-10 text-blue-500" />
+                  <TrendingUp className="w-10 h-10 text-blue-500" />
                 </div>
+              </div>
+            </div>
+
+            {/* User Roles Breakdown */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
+              <div className="glass rounded-2xl p-6 hover-lift">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-red-500/20 rounded-lg">
+                    <Shield className="w-6 h-6 text-red-400" />
+                  </div>
+                  <span className="text-xs text-gray-400">Admins</span>
+                </div>
+                <p className="text-2xl font-bold text-white mb-1">{analytics.adminUsers}</p>
+                <p className="text-xs text-gray-400">System administrators</p>
+              </div>
+
+              <div className="glass rounded-2xl p-6 hover-lift">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-purple-500/20 rounded-lg">
+                    <UserIcon className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <span className="text-xs text-gray-400">Dept Heads</span>
+                </div>
+                <p className="text-2xl font-bold text-white mb-1">{analytics.departmentHeads}</p>
+                <p className="text-xs text-gray-400">Department managers</p>
+              </div>
+
+              <div className="glass rounded-2xl p-6 hover-lift">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-blue-500/20 rounded-lg">
+                    <UserIcon className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <span className="text-xs text-gray-400">Project Leads</span>
+                </div>
+                <p className="text-2xl font-bold text-white mb-1">{analytics.projectLeads}</p>
+                <p className="text-xs text-gray-400">Project managers</p>
+              </div>
+
+              <div className="glass rounded-2xl p-6 hover-lift">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-green-500/20 rounded-lg">
+                    <Users className="w-6 h-6 text-green-400" />
+                  </div>
+                  <span className="text-xs text-gray-400">Team Members</span>
+                </div>
+                <p className="text-2xl font-bold text-white mb-1">{analytics.teamMembers}</p>
+                <p className="text-xs text-gray-400">Active contributors</p>
               </div>
             </div>
           </div>
@@ -1183,69 +1248,6 @@ export const Admin: React.FC = () => {
           </div>
         );
 
-      case 'tasks':
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-semibold text-white">Task Management</h2>
-              <Button>
-                <CheckSquare className="w-4 h-4 mr-2" />
-                Create Task
-              </Button>
-            </div>
-            
-            <div className="glass rounded-2xl overflow-hidden">
-              <div className="divide-y divide-white/10">
-                {tasks?.slice(0, 20).map((task: any) => (
-                  <div key={task.id} className="p-6 flex items-center justify-between hover:bg-slate-800/30 transition-all duration-200">
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-3 h-3 rounded-full ${
-                        task.priority === 'highest' ? 'bg-red-500' :
-                        task.priority === 'high' ? 'bg-orange-500' :
-                        task.priority === 'medium' ? 'bg-yellow-500' :
-                        task.priority === 'low' ? 'bg-blue-500' : 'bg-gray-500'
-                      }`} />
-                      <div>
-                        <p className="text-lg font-medium text-white">{task.title}</p>
-                        <p className="text-sm text-gray-400">{task.description}</p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                            task.status === 'done' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
-                            task.status === 'in-progress' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                            task.status === 'review' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
-                            'bg-gray-500/20 text-gray-400 border border-gray-500/30'
-                          }`}>
-                            {task.status}
-                          </span>
-                          <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                            task.type === 'bug' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                            task.type === 'story' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                            task.type === 'epic' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
-                            'bg-gray-500/20 text-gray-400 border border-gray-500/30'
-                          }`}>
-                            {task.type}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
-                      <Button variant="secondary" size="sm">
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit
-                      </Button>
-                      <Button variant="danger" size="sm">
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-
       case 'system':
         return (
           <div className="space-y-8">
@@ -1354,74 +1356,6 @@ export const Admin: React.FC = () => {
             <div className="flex justify-end space-x-3">
               <Button variant="secondary">Reset to Defaults</Button>
               <Button>Save Settings</Button>
-            </div>
-          </div>
-        );
-
-      case 'analytics':
-        return (
-          <div className="space-y-8">
-            <h2 className="text-2xl font-semibold text-white">Advanced Analytics</h2>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="glass rounded-2xl p-6">
-                <h3 className="text-lg font-medium text-white mb-4">User Activity</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-300">Active Users (24h)</span>
-                    <span className="text-white font-semibold">24</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-300">New Users (7d)</span>
-                    <span className="text-white font-semibold">8</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-300">User Retention</span>
-                    <span className="text-white font-semibold">78%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="glass rounded-2xl p-6">
-                <h3 className="text-lg font-medium text-white mb-4">Performance Metrics</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-300">Avg Response Time</span>
-                    <span className="text-white font-semibold">120ms</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-300">Uptime</span>
-                    <span className="text-white font-semibold">99.9%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-300">Error Rate</span>
-                    <span className="text-white font-semibold">0.1%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="glass rounded-2xl p-6">
-              <h3 className="text-lg font-medium text-white mb-4">Recent Activity Log</h3>
-              <div className="space-y-3">
-                {[
-                  { action: 'User login', user: 'john.doe@example.com', time: '2 minutes ago', type: 'info' },
-                  { action: 'Project created', user: 'jane.smith@example.com', time: '15 minutes ago', type: 'success' },
-                  { action: 'Task completed', user: 'mike.johnson@example.com', time: '1 hour ago', type: 'success' },
-                  { action: 'User role changed', user: 'admin@example.com', time: '2 hours ago', type: 'warning' }
-                ].map((log, index) => (
-                  <div key={index} className="flex items-center space-x-3 p-3 bg-slate-800/30 rounded-lg">
-                    <div className={`w-2 h-2 rounded-full ${
-                      log.type === 'success' ? 'bg-green-500' :
-                      log.type === 'warning' ? 'bg-yellow-500' :
-                      log.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
-                    }`} />
-                    <span className="text-white">{log.action}</span>
-                    <span className="text-gray-400">by {log.user}</span>
-                    <span className="text-gray-500 ml-auto">{log.time}</span>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         );

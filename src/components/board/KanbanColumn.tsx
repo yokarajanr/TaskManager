@@ -47,7 +47,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({ column }) => {
         <div
           ref={setNodeRef}
           className={clsx(
-            'flex-1 p-4 border-2 border-dashed border-t-0 rounded-b-lg min-h-96',
+            'flex-1 p-4 border-2 border-dashed border-t-0 rounded-b-lg min-h-96 transition-colors duration-300',
             columnColors[column.id]
           )}
         >
@@ -55,7 +55,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({ column }) => {
             items={column.tasks.map(task => task.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="space-y-3">
+            <div className="space-y-3 transition-all duration-200">
               {column.tasks.map(task => (
                 <SortableTaskCard
                   key={task.id}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import {
   BarChart3,
@@ -16,7 +16,15 @@ import { Button } from '../components/ui/Button';
 import { formatDistanceToNow } from 'date-fns';
 
 export const Dashboard: React.FC = () => {
-  const { tasks, currentProject, createProject, currentUser, users, projects } = useApp();
+  const { tasks, currentProject, createProject, currentUser, users, projects, fetchUsers } = useApp();
+  
+  // Fetch users when component mounts (needed for project creation)
+  useEffect(() => {
+    if (currentUser && ['admin', 'department-head', 'project-lead'].includes(currentUser.role || '')) {
+      console.log('🔄 Dashboard: Fetching users...');
+      fetchUsers();
+    }
+  }, [currentUser?.id, fetchUsers]);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [newProject, setNewProject] = useState({
     name: '',

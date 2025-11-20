@@ -3,10 +3,8 @@ import { useApp } from '../../contexts/AppContext';
 import { 
   Users, 
   FolderOpen, 
-  CheckSquare, 
   Settings, 
   BarChart3, 
-  TrendingUp,
   Shield,
   LogOut,
   Home
@@ -43,9 +41,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     { id: 'users', label: 'Users', icon: Users, description: 'User management' },
     { id: 'organizations', label: 'Organizations', icon: Shield, description: 'Organization codes' },
     { id: 'projects', label: 'Projects', icon: FolderOpen, description: 'Project control' },
-    { id: 'tasks', label: 'Tasks', icon: CheckSquare, description: 'Task management' },
-    { id: 'system', label: 'System', icon: Settings, description: 'System settings' },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp, description: 'Advanced analytics' }
+    { id: 'system', label: 'System', icon: Settings, description: 'System settings' }
   ];
 
   return (

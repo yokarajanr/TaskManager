@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -18,6 +18,17 @@ import { Task, TaskStatus, BoardColumn } from '../../types';
 export const KanbanBoard: React.FC = () => {
   const { tasks, updateTask } = useApp();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  // Debug: Log tasks when they change
+  useEffect(() => {
+    console.log('🎯 KanbanBoard - Tasks updated:', tasks.length, 'tasks');
+    console.log('📊 Tasks breakdown:', {
+      todo: tasks.filter(t => t.status === 'todo').length,
+      inProgress: tasks.filter(t => t.status === 'in-progress').length,
+      review: tasks.filter(t => t.status === 'review').length,
+      done: tasks.filter(t => t.status === 'done').length
+    });
+  }, [tasks]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

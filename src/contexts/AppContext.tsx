@@ -10,6 +10,7 @@ interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   message?: string;
+  requiresApproval?: boolean;
 }
 
 interface AppContextType {
@@ -122,25 +123,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     const loadInitialData = async () => {
       if (isAuthenticated && isMounted && authFailureCount < 5) {
-        try {
-          console.log('📦 AppContext: Loading initial data...');
-          setLoading(true);
-          await Promise.all([
-            fetchProjects(),
-            fetchUsers(),
-            currentProject ? fetchTasks(currentProject.id) : Promise.resolve()
-          ]);
-          // Reset failure count on successful load
-          setAuthFailureCount(0);
-        } catch (err) {
-          setError('Failed to load initial data');
-          console.error('Initial data load failed:', err);
-          // Increment failure count to trigger circuit breaker
-          setAuthFailureCount(prev => prev + 1);
-        } finally {
-          if (isMounted) {
-            setLoading(false);
+        // Only load if data hasn't been loaded yet (not coming from login)
+        if (projects.length === 0 && users.length === 0) {
+          try {
+            console.log('📦 AppContext: Loading initial data on mount...');
+            setLoading(true);
+            
+            // Fetch users if needed
+            if (currentUser && ['admin', 'department-head', 'project-lead'].includes(currentUser.role || '')) {
+              await fetchUsers();
+            }
+            
+            // Fetch projects (which will auto-fetch tasks)
+            await fetchProjects();
+            
+            // Reset failure count on successful load
+            setAuthFailureCount(0);
+          } catch (err) {
+            setError('Failed to load initial data');
+            console.error('Initial data load failed:', err);
+            // Increment failure count to trigger circuit breaker
+            setAuthFailureCount(prev => prev + 1);
+          } finally {
+            if (isMounted) {
+              setLoading(false);
+            }
           }
+        } else {
+          // Data already loaded (from login or previous session)
+          console.log('✅ Data already loaded, skipping initial load');
+          setLoading(false);
         }
       } else if (authFailureCount >= 5) {
         console.log('🚫 Circuit breaker: Too many auth failures, stopping requests');
@@ -160,7 +172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [isAuthenticated]); // Remove currentProject dependency to prevent excessive calls
+  }, [isAuthenticated, currentUser?.id]); // Trigger when auth or user changes
 
   // Refetch tasks when currentUser changes (for smooth task visibility updates)
   useEffect(() => {
@@ -173,15 +185,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Auth methods
   const login = async (email: string, password: string): Promise<ApiResponse> => {
     try {
-      setLoading(true);
       setError(null);
       
       const response = await authAPI.login(email, password);
       
       if (response.success && response.data) {
         const { user, token } = response.data;
+        // Set auth immediately for smooth transition
         setAuthToken(token);
         setCurrentUser(user);
+        
+        // Fetch all necessary data after login
+        console.log('🔄 Login successful, fetching initial data...');
+        
+        // Fetch users if admin, department-head, or project-lead
+        if (user.role && ['admin', 'department-head', 'project-lead'].includes(user.role)) {
+          await fetchUsers();
+        }
+        
+        // Fetch projects and tasks for all roles
+        await fetchProjects();
+        
+        // Tasks will be fetched automatically when currentProject is set in fetchProjects
+        console.log('✅ Initial data loaded successfully');
+        
         return { success: true };
       } else {
         const errorMessage = response?.message || 'Login failed';
@@ -192,14 +219,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       setError(errorMessage);
       return { success: false, message: errorMessage };
-    } finally {
-      setLoading(false);
     }
   };
 
   const register = async (name: string, email: string, password: string, organizationCode: string): Promise<ApiResponse> => {
     try {
-      setLoading(true);
       setError(null);
       
       console.log('🔐 AppContext: Registering user...', { name, email, organizationCode });
@@ -238,8 +262,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       setError(errorMessage);
       return { success: false, message: errorMessage };
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -275,7 +297,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         // Auto-select first project if no current project is set
         if (mappedProjects.length > 0 && !currentProject) {
-          setCurrentProject(mappedProjects[0]);
+          const firstProject = mappedProjects[0];
+          setCurrentProject(firstProject);
+          // Fetch tasks for the first project immediately
+          console.log('📋 Auto-fetching tasks for first project:', firstProject.name);
+          await fetchTasks(firstProject.id);
         }
         
         setAuthFailureCount(0); // Reset on success
@@ -332,14 +358,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     
     try {
+      console.log('📋 Fetching tasks from database...', projectId ? `for project: ${projectId}` : 'all tasks');
       const response = await tasksAPI.getTasks(projectId);
       
       if (response.success && response.data) {
-        setTasks(response.data.tasks || response.data || []);
+        const tasksData = response.data.tasks || response.data || [];
+        console.log('✅ Tasks fetched from database:', tasksData.length, 'tasks');
+        console.log('📊 Tasks data:', tasksData);
+        setTasks(tasksData);
         setAuthFailureCount(0); // Reset on success
       }
     } catch (err: any) {
-      console.error('Failed to fetch tasks:', err);
+      console.error('❌ Failed to fetch tasks:', err);
       if (err?.response?.status === 401) {
         setAuthFailureCount(prev => prev + 1);
       }
@@ -394,23 +424,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateTask = async (taskId: string, updates: Partial<Task>): Promise<ApiResponse<Task>> => {
     try {
-      setLoading(true);
+      // Optimistic update - update local state immediately for smooth UI
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId ? { ...task, ...updates } : task
+        )
+      );
+
       const response = await tasksAPI.updateTask(taskId, updates);
       
       if (response.success && response.data) {
-        await fetchTasks(updates.projectId);
-        return { success: true, data: response.data.task || response.data };
+        // Update with server response data to ensure consistency
+        const updatedTask = response.data.task || response.data;
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            task.id === taskId ? updatedTask : task
+          )
+        );
+        return { success: true, data: updatedTask };
       } else {
+        // Revert optimistic update on failure
+        await fetchTasks(updates.projectId);
         const errorMessage = response?.message || 'Failed to update task';
         setError(errorMessage);
         return { success: false, message: errorMessage };
       }
     } catch (err) {
+      // Revert optimistic update on error
+      if (updates.projectId) {
+        await fetchTasks(updates.projectId);
+      }
       const errorMessage = err instanceof Error ? err.message : 'Failed to update task';
       setError(errorMessage);
       return { success: false, message: errorMessage };
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -495,12 +541,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     
-    // Admins and Department Heads can see users
-    if (currentUser?.role === 'admin' || currentUser?.role === 'department-head') {
+    // Admins, Department Heads, and Project Leads can see users
+    if (currentUser?.role === 'admin' || currentUser?.role === 'department-head' || currentUser?.role === 'project-lead') {
       try {
+        console.log('👥 Fetching users for role:', currentUser?.role);
         const usersResponse = await usersAPI.getUsers();
         if (usersResponse.success && usersResponse.data) {
-          setUsers(usersResponse.data.users || usersResponse.data);
+          const usersData = usersResponse.data.users || usersResponse.data;
+          console.log('✅ Users fetched:', usersData.length, 'users');
+          setUsers(usersData);
           setAuthFailureCount(0); // Reset on success
         }
       } catch (err: any) {
@@ -510,6 +559,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         setError('Failed to load users');
       }
+    } else {
+      console.log('⚠️ User role not authorized to fetch users:', currentUser?.role);
     }
   };
 

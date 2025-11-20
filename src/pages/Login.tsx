@@ -13,6 +13,7 @@ export const Login: React.FC = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const from = location.state?.from?.pathname || '/dashboard';
 
@@ -24,20 +25,39 @@ export const Login: React.FC = () => {
     try {
       const result = await login(formData.email, formData.password);
       if (result.success) {
-        navigate(from, { replace: true });
+        // Show success state briefly
+        setSuccess(true);
+        // Navigate with smooth transition
+        setTimeout(() => {
+          navigate(from, { replace: true });
+        }, 300); // Small delay for smooth visual transition
       } else {
         setError(result.message || 'Invalid email or password.');
+        setLoading(false);
       }
     } catch (error) {
       setError('An error occurred during login. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#FFEDD5] via-[#E0FBFC] to-[#FFEDD5] p-4">
-      <div className="w-full max-w-md glass rounded-3xl p-8 border-2 border-[#9B5DE5]/20">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#FFEDD5] via-[#E0FBFC] to-[#FFEDD5] p-4 relative">
+      {/* Success overlay with smooth transition */}
+      {success && (
+        <div className="fixed inset-0 bg-gradient-to-br from-[#9B5DE5]/20 to-[#00F5D4]/20 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
+          <div className="bg-white rounded-3xl p-8 shadow-2xl transform animate-scale-in">
+            <div className="w-16 h-16 bg-gradient-to-br from-[#9B5DE5] to-[#00F5D4] rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-xl font-semibold text-[#1E1E24] text-center">Welcome back!</p>
+          </div>
+        </div>
+      )}
+      
+      <div className="w-full max-w-md glass rounded-3xl p-8 border-2 border-[#9B5DE5]/20 transition-all duration-300">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gradient-to-br from-[#9B5DE5] to-[#7C3AED] rounded-2xl flex items-center justify-center mx-auto mb-4 glow">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,8 +116,16 @@ export const Login: React.FC = () => {
               )}
             </div>
           )}
-          <Button type="submit" className="w-full btn-primary" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign in'}
+          <Button type="submit" className="w-full btn-primary relative overflow-hidden" disabled={loading}>
+            {loading ? (
+              <span className="flex items-center justify-center space-x-2">
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Signing in...</span>
+              </span>
+            ) : 'Sign in'}
           </Button>
         </form>
 

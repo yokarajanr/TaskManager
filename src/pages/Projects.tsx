@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { Button } from '../components/ui/Button';
 import { FolderOpen, Plus, Users, Calendar, BarChart3, Edit, Trash2, Lock } from 'lucide-react';
 
 export const Projects: React.FC = () => {
-  const { projects, currentUser, createProject, updateProject, deleteProject, users, setCurrentProject } = useApp();
+  const { projects, currentUser, createProject, updateProject, deleteProject, users, setCurrentProject, fetchUsers } = useApp();
+  
+  // Fetch users when component mounts (for project lead and team member selection)
+  useEffect(() => {
+    if (currentUser && ['admin', 'department-head', 'project-lead'].includes(currentUser.role || '')) {
+      console.log('🔄 Projects page: Fetching users...');
+      fetchUsers();
+    }
+  }, [currentUser?.id, fetchUsers]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);

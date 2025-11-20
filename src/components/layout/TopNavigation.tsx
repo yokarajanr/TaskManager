@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { Button } from '../ui/Button';
-import { Bell, Search, Settings, User, LogOut, Menu, X, Plus, FolderOpen } from 'lucide-react';
+import { Mail, Search, Sliders, User, Menu, X, Plus, FolderOpen, Power } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { NotificationPanel } from './NotificationPanel';
 
 export const TopNavigation: React.FC = () => {
   const { currentUser, logout, tasks, projects, users, currentProject, setCurrentProject } = useApp();
@@ -11,14 +12,128 @@ export const TopNavigation: React.FC = () => {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showProjectSelector, setShowProjectSelector] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const projectSelectorRef = useRef<HTMLDivElement>(null);
+  const notificationRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   if (!currentUser) return null;
 
   // Check if user role works with projects (not admin)
   const canWorkWithProjects = currentUser.role && ['team-member', 'project-lead', 'department-head'].includes(currentUser.role);
+
+  // Calculate notification count based on role and recent activity
+  const getNotificationCount = () => {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    let count = 0;
+
+    switch (currentUser.role) {
+      case 'team-member':
+        // Count assigned tasks (created in last 7 days)
+        count += tasks.filter(task => 
+          task.assigneeId === currentUser.id && 
+          task.status !== 'done' &&
+          task.createdAt && new Date(task.createdAt) > sevenDaysAgo
+        ).length;
+        
+        // Count overdue tasks
+        count += tasks.filter(task => 
+          task.assigneeId === currentUser.id && 
+          task.dueDate && 
+          new Date(task.dueDate) < now &&
+          task.status !== 'done'
+        ).length;
+        
+        // Count recent project assignments
+        count += projects.filter(project => 
+          project.members?.some(member => member.id === currentUser.id) &&
+          project.createdAt && new Date(project.createdAt) > sevenDaysAgo
+        ).length;
+        break;
+
+      case 'project-lead':
+        const leadProjects = projects.filter(p => p.projectLead === currentUser.id);
+        const leadProjectIds = leadProjects.map(p => p.id);
+        
+        // Count recent project assignments
+        count += leadProjects.filter(project => 
+          project.createdAt && new Date(project.createdAt) > sevenDaysAgo
+        ).length;
+        
+        // Count new tasks in projects
+        count += tasks.filter(task => 
+          leadProjectIds.includes(task.projectId) &&
+          task.createdAt && new Date(task.createdAt) > sevenDaysAgo
+        ).length;
+        
+        // Count overdue tasks
+        const overdueCount = tasks.filter(task => 
+          leadProjectIds.includes(task.projectId) &&
+          task.dueDate && 
+          new Date(task.dueDate) < now &&
+          task.status !== 'done'
+        ).length;
+        if (overdueCount > 0) count += 1; // Add as one notification
+        break;
+
+      case 'department-head':
+        const deptProjects = projects.filter(p => 
+          p.createdBy === currentUser.id || p.ownerId === currentUser.id
+        );
+        
+        // Count new projects
+        count += deptProjects.filter(project => 
+          project.createdAt && new Date(project.createdAt) > sevenDaysAgo
+        ).length;
+        
+        const deptProjectIds = deptProjects.map(p => p.id);
+        const deptTasks = tasks.filter(task => deptProjectIds.includes(task.projectId));
+        
+        // Count overdue tasks
+        const deptOverdueCount = deptTasks.filter(task => 
+          task.dueDate && 
+          new Date(task.dueDate) < now &&
+          task.status !== 'done'
+        ).length;
+        if (deptOverdueCount > 0) count += 1;
+        
+        // Count recently completed tasks
+        const completedCount = deptTasks.filter(task => 
+          task.status === 'done' &&
+          task.updatedAt && new Date(task.updatedAt) > sevenDaysAgo
+        ).length;
+        if (completedCount > 0) count += 1;
+        break;
+
+      case 'admin':
+        // Count recent projects
+        const recentProjects = projects.filter(project => 
+          project.createdAt && new Date(project.createdAt) > sevenDaysAgo
+        ).length;
+        if (recentProjects > 0) count += 1;
+        
+        // Count recent users
+        const recentUsers = users.filter(user => 
+          user.createdAt && new Date(user.createdAt) > sevenDaysAgo && user.id !== currentUser.id
+        ).length;
+        if (recentUsers > 0) count += 1;
+        
+        // Count pending approvals
+        const pendingUsers = users.filter(user => !user.isApproved && user.isActive).length;
+        if (pendingUsers > 0) count += 1;
+        
+        // Count system activity
+        const activeTasks = tasks.filter(task => task.status !== 'done').length;
+        if (activeTasks > 20) count += 1;
+        break;
+    }
+
+    return Math.min(99, count);
+  };
+
+  const notificationCount = getNotificationCount();
 
   // Handle search
   const handleSearch = (query: string) => {
@@ -101,7 +216,7 @@ export const TopNavigation: React.FC = () => {
     }
   };
 
-  // Close search results and project selector when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -109,6 +224,9 @@ export const TopNavigation: React.FC = () => {
       }
       if (projectSelectorRef.current && !projectSelectorRef.current.contains(event.target as Node)) {
         setShowProjectSelector(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
       }
     };
 
@@ -288,41 +406,54 @@ export const TopNavigation: React.FC = () => {
             </div>
 
             {/* Right side actions */}
-            <div className="flex items-center space-x-2 flex-shrink-0">
-              {/* Notifications */}
-              <button className="relative p-2 text-[#1E1E24] hover:text-[#9B5DE5] hover:bg-[#9B5DE5]/10 rounded-xl transition-all duration-300">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D7263D] rounded-full ring-2 ring-white"></span>
-              </button>
-
-              {/* Settings */}
-              <button 
-                onClick={() => navigate('/settings')}
-                className="p-2 text-[#1E1E24] hover:text-[#9B5DE5] hover:bg-[#9B5DE5]/10 rounded-xl transition-all duration-300"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-
-              {/* User Menu */}
-              <div className="flex items-center space-x-2 ml-2">
-                <div className="flex items-center space-x-2 px-3 py-2 bg-[#E0FBFC] rounded-xl border-2 border-[#9B5DE5]/20 hover:border-[#9B5DE5]/40 transition-all duration-300 cursor-pointer">
-                  <div className="w-8 h-8 bg-gradient-to-br from-[#9B5DE5] to-[#7C3AED] rounded-lg flex items-center justify-center text-white text-sm font-semibold">
+            <div className="flex items-center space-x-3 flex-shrink-0">
+              {/* User Profile with Dropdown */}
+              <div className="flex items-center space-x-3 px-4 py-2 bg-gradient-to-r from-[#9B5DE5]/10 to-[#00F5D4]/10 rounded-2xl border-2 border-[#9B5DE5]/30 hover:border-[#9B5DE5]/50 transition-all duration-300">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 bg-gradient-to-br from-[#9B5DE5] to-[#00F5D4] rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg">
                     {currentUser.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                   <div className="hidden xl:block text-left">
-                    <p className="text-sm font-semibold text-[#1E1E24] !important">{currentUser.name}</p>
-                    <p className="text-xs text-[#7C6F64] !important capitalize">{currentUser.role || 'Admin'}</p>
+                    <p className="text-sm font-bold text-[#1E1E24]">{currentUser.name}</p>
+                    <p className="text-xs text-[#7C6F64] capitalize">{currentUser.role || 'User'}</p>
                   </div>
                 </div>
-
-                <button
-                  onClick={logout}
-                  className="p-2 text-[#1E1E24] hover:text-[#D7263D] hover:bg-[#D7263D]/10 rounded-xl transition-all duration-300"
-                  title="Logout"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
               </div>
+
+              {/* Notifications */}
+              <div className="relative" ref={notificationRef}>
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative p-3 text-[#1E1E24] hover:text-[#00F5D4] hover:bg-[#00F5D4]/10 rounded-xl transition-all duration-300 group"
+                  title="Notifications"
+                >
+                  <Mail className="w-5 h-5" />
+                  {notificationCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-[#D7263D] to-[#E07A5F] text-white text-xs font-bold rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      {notificationCount}
+                    </span>
+                  )}
+                </button>
+                {showNotifications && <NotificationPanel onClose={() => setShowNotifications(false)} />}
+              </div>
+
+              {/* Preferences/Controls */}
+              <button 
+                onClick={() => navigate('/settings')}
+                className="p-3 text-[#1E1E24] hover:text-[#F7B801] hover:bg-[#F7B801]/10 rounded-xl transition-all duration-300"
+                title="Preferences"
+              >
+                <Sliders className="w-5 h-5" />
+              </button>
+
+              {/* Logout */}
+              <button
+                onClick={logout}
+                className="p-3 text-[#1E1E24] hover:text-[#D7263D] hover:bg-[#D7263D]/10 rounded-xl transition-all duration-300"
+                title="Sign Out"
+              >
+                <Power className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>
@@ -413,16 +544,27 @@ export const TopNavigation: React.FC = () => {
                   onClick={logout}
                   className="p-2 text-[#1E1E24] hover:text-[#D7263D] hover:bg-[#D7263D]/10 rounded-lg"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <Power className="w-5 h-5" />
                 </Button>
               </div>
               
               <div className="flex items-center justify-around">
-                <button className="p-3 text-[#1E1E24] hover:text-[#9B5DE5] hover:bg-[#9B5DE5]/10 rounded-xl transition-all duration-300">
-                  <Bell className="w-5 h-5" />
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative p-3 text-[#1E1E24] hover:text-[#00F5D4] hover:bg-[#00F5D4]/10 rounded-xl transition-all duration-300"
+                >
+                  <Mail className="w-5 h-5" />
+                  {notificationCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-br from-[#D7263D] to-[#E07A5F] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {notificationCount}
+                    </span>
+                  )}
                 </button>
-                <button className="p-3 text-[#1E1E24] hover:text-[#9B5DE5] hover:bg-[#9B5DE5]/10 rounded-xl transition-all duration-300">
-                  <Settings className="w-5 h-5" />
+                <button 
+                  onClick={() => navigate('/settings')}
+                  className="p-3 text-[#1E1E24] hover:text-[#F7B801] hover:bg-[#F7B801]/10 rounded-xl transition-all duration-300"
+                >
+                  <Sliders className="w-5 h-5" />
                 </button>
               </div>
             </div>

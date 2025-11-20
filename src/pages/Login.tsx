@@ -30,7 +30,7 @@ export const Login: React.FC = () => {
         // Navigate with smooth transition
         setTimeout(() => {
           navigate(from, { replace: true });
-        }, 300); // Small delay for smooth visual transition
+        }, 150); // Reduced delay for faster navigation
       } else {
         setError(result.message || 'Invalid email or password.');
         setLoading(false);

@@ -86,6 +86,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Check if user is authenticated and not blocked by circuit breaker
   const isAuthenticated = !!currentUser && !!getAuthToken() && authFailureCount < 5;
 
+  // Fetch tasks immediately when current project changes (no lag)
+  useEffect(() => {
+    if (currentProject && currentProject.id && isAuthenticated) {
+      console.log('🔄 Current project changed, fetching tasks immediately:', currentProject.name);
+      fetchTasks(currentProject.id);
+    }
+  }, [currentProject?.id, isAuthenticated]);
+
   // Validate authentication on app startup
   useEffect(() => {
     const validateAuth = () => {
@@ -165,22 +173,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    // Add a small delay to prevent rapid fire calls
-    const timeoutId = setTimeout(loadInitialData, 100);
+    // Load immediately without delay for faster login
+    loadInitialData();
     
     return () => {
       isMounted = false;
-      clearTimeout(timeoutId);
     };
   }, [isAuthenticated, currentUser?.id]); // Trigger when auth or user changes
-
-  // Refetch tasks when currentUser changes (for smooth task visibility updates)
-  useEffect(() => {
-    if (currentUser && currentProject && isAuthenticated) {
-      console.log('👤 User changed, refetching tasks for:', currentUser.name);
-      fetchTasks(currentProject.id);
-    }
-  }, [currentUser?.id]); // Trigger when user ID changes
 
   // Auth methods
   const login = async (email: string, password: string): Promise<ApiResponse> => {
@@ -198,15 +197,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Fetch all necessary data after login
         console.log('🔄 Login successful, fetching initial data...');
         
+        // Fetch data in parallel for faster loading
+        const fetchPromises = [];
+        
         // Fetch users if admin, department-head, or project-lead
         if (user.role && ['admin', 'department-head', 'project-lead'].includes(user.role)) {
-          await fetchUsers();
+          fetchPromises.push(fetchUsers());
         }
         
-        // Fetch projects and tasks for all roles
-        await fetchProjects();
+        // Fetch projects (tasks will be fetched automatically when currentProject is set)
+        fetchPromises.push(fetchProjects());
         
-        // Tasks will be fetched automatically when currentProject is set in fetchProjects
+        // Execute all fetches in parallel
+        await Promise.all(fetchPromises);
+        
         console.log('✅ Initial data loaded successfully');
         
         return { success: true };
